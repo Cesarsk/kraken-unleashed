@@ -1,4 +1,6 @@
 node_modules/
+dist/
+dist-resources/
 
 backend-rust/target/
 backend-rust/target-runtime/

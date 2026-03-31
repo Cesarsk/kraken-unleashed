@@ -109,7 +109,7 @@ pub fn run_native_command(args: &[String], supported_devices: &[SupportedDevice]
         Some("recover") => {
             let mut device = open_control_device(supported_devices)?;
             device.recover_liquid()?;
-            Ok(format_message_json("Restored liquid display mode"))
+            Ok(format_message_json("Display restored"))
         }
         Some("write") => {
             let asset_path = args.get(1).ok_or_else(|| "Missing asset path".to_string())?;
@@ -1448,10 +1448,15 @@ fn format_message_json(message: &str) -> String {
 
 #[cfg(windows)]
 fn export_prepared_gif(source_path: &Path, bytes: &[u8]) -> Result<PathBuf, String> {
-    let app_root = std::env::var("KRAKEN_APP_ROOT")
+    let export_root = std::env::var("KRAKEN_USER_DATA_DIR")
         .map(PathBuf::from)
+        .or_else(|_| {
+            std::env::var("KRAKEN_APP_ROOT")
+                .map(PathBuf::from)
+                .map(|path| path.join(".electron-data"))
+        })
         .unwrap_or_else(|_| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-    let export_dir = app_root.join(".electron-data").join("prepared-gifs");
+    let export_dir = export_root.join("prepared-gifs");
     fs::create_dir_all(&export_dir)
         .map_err(|error| format!("Could not create prepared GIF export folder: {}", error))?;
 

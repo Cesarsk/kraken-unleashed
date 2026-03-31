@@ -2,11 +2,18 @@ const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+let appConfig = {};
+try {
+  appConfig = require('./app-config');
+} catch {
+  appConfig = {};
+}
 
-const APP_DIR = path.join(__dirname, '..');
-const GALLERY_DIR = path.join(APP_DIR, 'gifs');
+const SOURCE_ROOT = path.join(__dirname, '..');
+const RUNTIME_ROOT = app.isPackaged ? process.resourcesPath : SOURCE_ROOT;
+const ELECTRON_DATA_DIR = app.getPath('userData');
+const GALLERY_DIR = path.join(ELECTRON_DATA_DIR, 'gifs');
 const UPLOADS_DIR = path.join(GALLERY_DIR, 'uploads');
-const ELECTRON_DATA_DIR = path.join(APP_DIR, '.electron-data');
 const PRESETS_PATH = path.join(ELECTRON_DATA_DIR, 'gif-presets.json');
 const APP_STATE_PATH = path.join(ELECTRON_DATA_DIR, 'app-state.json');
 const WINDOW_ICON_PATH = path.join(
@@ -14,10 +21,14 @@ const WINDOW_ICON_PATH = path.join(
   'assets',
   process.platform === 'win32' ? 'app-icon.ico' : 'app-icon.png'
 );
-const KLIPY_API_KEY = process.env.KLIPY_API_KEY || '';
-const KLIPY_CLIENT_KEY = process.env.KLIPY_CLIENT_KEY || 'kraken-unleashed';
-const RUST_BACKEND_DIR = path.join(APP_DIR, 'backend-rust');
-const RUST_MANIFEST_PATH = path.join(RUST_BACKEND_DIR, 'Cargo.toml');
+const GALLERY_LIMIT = 10;
+const SEARCH_PAGE_SIZE = 4;
+const KLIPY_API_KEY = process.env.KLIPY_API_KEY || appConfig.klipyApiKey || '';
+const KLIPY_CLIENT_KEY = process.env.KLIPY_CLIENT_KEY || appConfig.klipyClientKey || 'kraken-unleashed';
+const RUST_BACKEND_DIR = app.isPackaged
+  ? path.join(RUNTIME_ROOT, 'backend')
+  : path.join(SOURCE_ROOT, 'backend-rust');
+const RUST_MANIFEST_PATH = path.join(SOURCE_ROOT, 'backend-rust', 'Cargo.toml');
 const RUST_BINARY_NAME = process.platform === 'win32'
   ? 'kraken-unleashed-backend.exe'
   : 'kraken-unleashed-backend';
@@ -31,7 +42,6 @@ function ensureDir(dirPath) {
 }
 
 ensureDir(ELECTRON_DATA_DIR);
-app.setPath('userData', ELECTRON_DATA_DIR);
 app.setPath('sessionData', ELECTRON_DATA_DIR);
 
 function rustBinaryCandidates() {
@@ -41,11 +51,16 @@ function rustBinaryCandidates() {
     candidates.push(envBinary);
   }
 
-  candidates.push(path.join(RUST_BACKEND_DIR, 'target', 'debug', RUST_BINARY_NAME));
-  candidates.push(path.join(RUST_BACKEND_DIR, 'target-runtime', 'debug', RUST_BINARY_NAME));
-  candidates.push(path.join(RUST_BACKEND_DIR, 'target-stage', 'debug', RUST_BINARY_NAME));
-  candidates.push(path.join(RUST_BACKEND_DIR, 'bin', RUST_BINARY_NAME));
-  candidates.push(path.join(RUST_BACKEND_DIR, 'target', 'release', RUST_BINARY_NAME));
+  if (app.isPackaged) {
+    candidates.push(path.join(RUST_BACKEND_DIR, RUST_BINARY_NAME));
+  } else {
+    candidates.push(path.join(RUST_BACKEND_DIR, 'target', 'debug', RUST_BINARY_NAME));
+    candidates.push(path.join(RUST_BACKEND_DIR, 'target-runtime', 'debug', RUST_BINARY_NAME));
+    candidates.push(path.join(RUST_BACKEND_DIR, 'target-stage', 'debug', RUST_BINARY_NAME));
+    candidates.push(path.join(RUST_BACKEND_DIR, 'bin', RUST_BINARY_NAME));
+    candidates.push(path.join(RUST_BACKEND_DIR, 'target', 'release', RUST_BINARY_NAME));
+    candidates.push(path.join(SOURCE_ROOT, 'dist-resources', 'backend', RUST_BINARY_NAME));
+  }
   return candidates;
 }
 
@@ -73,16 +88,18 @@ function resolveBridge() {
       args: [],
       env: {
         ...process.env,
-        KRAKEN_APP_ROOT: APP_DIR,
+        KRAKEN_APP_ROOT: SOURCE_ROOT,
+        KRAKEN_USER_DATA_DIR: ELECTRON_DATA_DIR,
         KRAKEN_BACKEND_IMPL: 'native'
       }
     };
     return selectedBridge;
   }
 
-  throw new Error(
-    `Rust backend helper not found. Build or stage ${RUST_MANIFEST_PATH} first.`
-  );
+  const backendHint = app.isPackaged
+    ? `Packaged Rust backend helper not found in ${RUST_BACKEND_DIR}.`
+    : `Rust backend helper not found. Build or stage ${RUST_MANIFEST_PATH} first.`;
+  throw new Error(backendHint);
 }
 
 function sanitizeFileName(name) {
@@ -139,7 +156,7 @@ function runBridge(args, options = {}) {
     }
 
     const child = spawn(bridge.command, [...bridge.args, ...args], {
-      cwd: APP_DIR,
+      cwd: app.isPackaged ? RUNTIME_ROOT : SOURCE_ROOT,
       windowsHide: true,
       env: bridge.env
     });
@@ -253,7 +270,7 @@ function listGalleryItems() {
   return collectGalleryItems(GALLERY_DIR)
     .filter((entry) => supported.has(entry.type))
     .sort((a, b) => b.modified - a.modified)
-    .slice(0, 12);
+    .slice(0, GALLERY_LIMIT);
 }
 
 function getPreset(assetPath) {
@@ -268,37 +285,55 @@ function savePreset(assetPath, preset) {
   return preset;
 }
 
-async function searchKlipy(query) {
+async function searchKlipy(request) {
   if (!KLIPY_API_KEY) {
     throw new Error('KLIPY search is not configured. Set KLIPY_API_KEY to enable in-app GIF search.');
+  }
+
+  const searchPayload = typeof request === 'string'
+    ? { query: request }
+    : (request || {});
+  const query = String(searchPayload.query || '').trim();
+  const cursor = String(searchPayload.cursor || '').trim();
+  if (!query) {
+    throw new Error('Search query is required.');
   }
 
   const params = new URLSearchParams({
     key: KLIPY_API_KEY,
     client_key: KLIPY_CLIENT_KEY,
     q: query,
-    limit: '12',
+    limit: String(SEARCH_PAGE_SIZE),
     media_filter: 'gif,tinygif',
     contentfilter: 'medium'
   });
+  if (cursor) {
+    params.set('pos', cursor);
+  }
 
   const response = await fetch(`https://api.klipy.com/v2/search?${params.toString()}`);
   if (!response.ok) {
     throw new Error(`KLIPY search failed with status ${response.status}`);
   }
 
-  const payload = await response.json();
-  return (payload.results || []).map((item) => {
+  const apiPayload = await response.json();
+  const results = (apiPayload.results || []).map((item) => {
     const gif = item.media_formats?.gif;
     const tinygif = item.media_formats?.tinygif || gif;
     return {
       id: item.id,
-      title: item.content_description || 'Untitled GIF',
+      title: item.content_description || item.title || 'Untitled GIF',
       previewUrl: tinygif?.url || gif?.url,
       downloadUrl: gif?.url,
       dimensions: gif?.dims || tinygif?.dims || null
     };
   }).filter((item) => item.previewUrl && item.downloadUrl);
+
+  return {
+    results,
+    nextCursor: apiPayload.next || null,
+    pageSize: SEARCH_PAGE_SIZE
+  };
 }
 
 async function downloadSearchResult({ url, title }) {
@@ -362,6 +397,11 @@ function createWindow() {
 }
 
 ipcMain.handle('app:get-device-info', async () => enqueueBridge(['info']));
+ipcMain.handle('app:get-app-meta', async () => ({
+  version: app.getVersion(),
+  galleryLimit: GALLERY_LIMIT,
+  searchPageSize: SEARCH_PAGE_SIZE
+}));
 ipcMain.handle('app:set-brightness', async (_event, value) =>
   enqueueBridge(['brightness', String(value)])
 );
@@ -406,13 +446,6 @@ ipcMain.handle('app:search-gifs', async (_event, query) => searchKlipy(query));
 ipcMain.handle('app:download-search-result', async (_event, payload) =>
   downloadSearchResult(payload)
 );
-ipcMain.handle('app:open-gif-browser', async (_event, query) => {
-  const trimmed = String(query || '').trim();
-  const url = trimmed
-    ? `https://gifcities.org/?q=${encodeURIComponent(trimmed)}`
-    : 'https://gifcities.org/';
-  return shell.openExternal(url);
-});
 ipcMain.handle('app:write-asset', async (event, payload) => {
   const {
     assetPath,
