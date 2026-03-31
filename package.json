@@ -1,0 +1,77 @@
+{
+  "name": "kraken-unleashed",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Direct GIF deployment for supported Kraken LCD coolers from a native desktop app.",
+  "author": "Cesarsk",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Cesarsk/kraken-unleashed.git"
+  },
+  "main": "frontend-electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "backend:build": "cargo build --manifest-path backend-rust/Cargo.toml",
+    "backend:build:release": "cargo build --release --manifest-path backend-rust/Cargo.toml",
+    "backend:stage": "powershell -NoProfile -Command \"$env:CARGO_TARGET_DIR='backend-rust/target-runtime'; cargo build --offline --manifest-path backend-rust/Cargo.toml; New-Item -ItemType Directory -Force backend-rust/bin | Out-Null; try { Copy-Item backend-rust/target-runtime/debug/kraken-unleashed-backend.exe backend-rust/bin/kraken-unleashed-backend.exe -Force -ErrorAction Stop } catch { Write-Host 'backend-rust/bin is locked; Electron can use backend-rust/target-runtime/debug directly.' }\"",
+    "dist:prepare": "node scripts/prepare-dist-resources.js",
+    "dist:win": "npm run dist:prepare && electron-builder --win nsis portable --x64 --publish never",
+    "release:win": "npm run dist:prepare && electron-builder --win nsis portable --x64 --publish always"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.cesarsk.krakenunleashed",
+    "productName": "Kraken Unleashed",
+    "asar": true,
+    "npmRebuild": false,
+    "files": [
+      "frontend-electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "dist-resources/backend",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "icon": "frontend-electron/assets/app-icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "publish": [
+        {
+          "provider": "github",
+          "owner": "Cesarsk",
+          "repo": "kraken-unleashed"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

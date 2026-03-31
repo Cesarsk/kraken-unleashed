@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      VT_API_KEY: ${{ secrets.VT_API_KEY }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate tag matches package version
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: pwsh
+        run: |
+          $packageVersion = node -p "require('./package.json').version"
+          if ("v$packageVersion" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} does not match package.json version v$packageVersion"
+          }
+
+      - name: Build Windows artifacts
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: npm run dist:win
+
+      - name: Build and publish GitHub release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: npm run release:win
+
+      - name: Upload packaged artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-dist
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+            dist/*.yml
+          if-no-files-found: error
+
+      - name: Submit installer to VirusTotal
+        if: ${{ env.VT_API_KEY != '' && hashFiles('dist/*setup*.exe') != '' }}
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem dist\*setup*.exe | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $installer) {
+            throw "No Windows installer artifact found for VirusTotal upload."
+          }
+
+          node scripts/upload-virustotal.js $installer
+          Get-Content dist\virustotal\summary.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload VirusTotal report
+        if: ${{ env.VT_API_KEY != '' && hashFiles('dist/virustotal/*') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: virustotal-report
+          path: dist/virustotal/*
+          if-no-files-found: error
