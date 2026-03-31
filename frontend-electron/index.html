@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kraken Unleashed</title>
+    <link rel="icon" type="image/png" href="assets/app-icon.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div>
+          <h1>KRAKEN UNLEASHED</h1>
+        </div>
+        <div class="topbar-meta">
+          <span id="device-tag" class="device-tag device-tag--checking">Detecting...</span>
+        </div>
+      </header>
+      <p id="status-line" class="sr-only" aria-live="polite">Ready to deploy a GIF directly to the display.</p>
+
+      <main class="panel">
+        <section class="hero-row">
+          <div class="controls-row">
+            <label class="brightness-control">
+              <span>Brightness</span>
+              <input id="brightness-slider" type="range" min="0" max="100" value="100" />
+              <div class="control-button-stack">
+                <button id="display-power-button" class="ghost-button compact-button">Shutdown LCD</button>
+                <button id="recover-button" class="ghost-button compact-button">Restore Liquid Screen</button>
+              </div>
+            </label>
+
+            <label class="mode-select">
+              <span>Mode</span>
+              <select id="mode-select" disabled>
+                <option>GIF Only</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="content-grid">
+          <div class="left-column">
+            <div class="actions-row">
+              <button id="upload-button" class="primary-button">Upload</button>
+              <button id="browse-button" class="secondary-button">Open Gallery</button>
+              <button id="compatibility-button" class="ghost-button">Compatibility</button>
+            </div>
+
+            <p class="support-copy">
+              Supports GIF only. The app writes directly to the LCD over USB and does not require vendor control software.
+            </p>
+
+            <div class="search-card">
+              <div class="search-header">
+                <div>
+                  <p class="section-label">Online GIF Search</p>
+                  <h3>Find GIFs</h3>
+                </div>
+                <span class="search-badge">KLIPY</span>
+              </div>
+              <div class="search-row">
+                <input id="search-input" class="search-input" type="text" placeholder="Search for black hole, synthwave, nyan cat..." />
+                <button id="search-button" class="secondary-button">Search</button>
+                <button id="free-browser-button" class="ghost-button">Free Browser</button>
+              </div>
+              <p id="search-status" class="search-status">Search downloads GIFs into your local gallery. If search is unavailable, set `KLIPY_API_KEY` and relaunch the app.</p>
+              <div id="search-results" class="search-results"></div>
+            </div>
+
+            <div class="selection-card">
+              <div>
+                <p class="section-label">Selected asset</p>
+                <h3 id="selected-name">Nothing selected yet</h3>
+              </div>
+              <div class="selection-actions">
+                <button id="edit-button" class="secondary-button" disabled>Editor</button>
+                <button id="write-button" class="primary-button wide-button" disabled>Deploy</button>
+              </div>
+              <div id="deploy-progress" class="deploy-progress hidden" aria-hidden="true">
+                <div class="deploy-progress-meta">
+                  <span id="deploy-progress-label">Ready to deploy.</span>
+                  <span id="deploy-progress-value">0%</span>
+                </div>
+                <div class="deploy-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                  <div id="deploy-progress-fill" class="deploy-progress-fill"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="history-header">
+              <div>
+                <p class="section-label">Previous Images</p>
+                <h3>Gallery</h3>
+              </div>
+            </div>
+            <div id="gallery-strip" class="gallery-strip"></div>
+
+            <div class="legal-card">
+              <p class="section-label">Important Notice</p>
+              <p class="legal-copy">
+                Use this software at your own risk. You are responsible for any device changes, writes, or damage that may result from using it. Kraken Unleashed is an independent project and is not affiliated with, endorsed by, or sponsored by NZXT. NZXT and related product names are trademarks of their respective owners.
+              </p>
+            </div>
+          </div>
+
+          <div class="preview-column">
+            <div class="preview-frame">
+              <button id="rotate-button" class="link-button rotate-link">Rotate Display: <span id="rotation-label">0 deg</span></button>
+              <div class="preview-ring">
+                <img id="preview-image" alt="LCD preview" />
+                <div id="preview-placeholder" class="preview-placeholder">Preview</div>
+              </div>
+            </div>
+            <div class="support-card">
+              <div class="support-copy-block">
+                <p class="section-label">Project Links</p>
+                <h3>Support, updates, and source</h3>
+              </div>
+              <div class="support-links-grid">
+                <a class="support-link support-link--sponsor" href="https://github.com/sponsors/Cesarsk" target="_blank" rel="noreferrer" aria-label="GitHub Sponsors">
+                  <span class="support-link-icon" aria-hidden="true">
+                    <svg viewBox="0 0 16 16" fill="currentColor" role="img">
+                      <path d="M8 14s6-4.35 6-8.28C14 3.48 12.42 2 10.5 2 9.24 2 8.44 2.72 8 3.38 7.56 2.72 6.76 2 5.5 2 3.58 2 2 3.48 2 5.72 2 9.65 8 14 8 14Z"></path>
+                    </svg>
+                  </span>
+                  <span class="support-link-text">
+                    <strong>Sponsor</strong>
+                  </span>
+                </a>
+                <a class="support-link support-link--website" href="https://lucacesarano.com" target="_blank" rel="noreferrer" aria-label="Website">
+                  <span class="support-link-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img">
+                      <circle cx="12" cy="12" r="9"></circle>
+                      <path d="M3 12h18"></path>
+                      <path d="M12 3a15 15 0 0 1 0 18"></path>
+                      <path d="M12 3a15 15 0 0 0 0 18"></path>
+                    </svg>
+                  </span>
+                  <span class="support-link-text">
+                    <strong>Website</strong>
+                  </span>
+                </a>
+                <a class="support-link support-link--github" href="https://github.com/cesarsk" target="_blank" rel="noreferrer" aria-label="GitHub">
+                  <span class="support-link-icon" aria-hidden="true">
+                    <svg viewBox="0 0 16 16" fill="currentColor" role="img">
+                      <path d="M8 0C3.58 0 0 3.67 0 8.2c0 3.63 2.29 6.7 5.47 7.78.4.08.55-.18.55-.4 0-.2-.01-.87-.01-1.58-2.01.38-2.53-.5-2.69-.95-.09-.23-.48-.95-.82-1.14-.28-.16-.68-.56-.01-.57.63-.01 1.08.59 1.23.84.72 1.25 1.87.9 2.33.68.07-.53.28-.9.5-1.11-1.78-.21-3.64-.92-3.64-4.08 0-.9.31-1.64.82-2.22-.08-.21-.36-1.05.08-2.19 0 0 .67-.22 2.2.85.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.07 2.2-.85 2.2-.85.44 1.14.16 1.98.08 2.19.51.58.82 1.31.82 2.22 0 3.17-1.87 3.87-3.65 4.08.29.25.54.73.54 1.48 0 1.07-.01 1.94-.01 2.2 0 .22.15.49.55.4A8.21 8.21 0 0 0 16 8.2C16 3.67 12.42 0 8 0Z"></path>
+                    </svg>
+                  </span>
+                  <span class="support-link-text">
+                    <strong>GitHub</strong>
+                  </span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="editor-modal" class="modal-shell hidden" aria-hidden="true">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="section-label">Placement Editor</p>
+            <h2>Editor</h2>
+          </div>
+          <button id="close-editor-button" class="icon-button">x</button>
+        </div>
+        <div class="editor-toolbar">
+          <p class="modal-copy">Drag to reposition. Scroll to zoom. Save when the GIF sits correctly inside the LCD circle.</p>
+          <div class="editor-stats">
+            <span id="editor-zoom-label">100%</span>
+            <button id="reset-editor-button" class="ghost-button compact-button">Reset</button>
+          </div>
+        </div>
+        <div id="editor-canvas" class="editor-canvas">
+          <div class="editor-square"></div>
+          <div class="editor-circle"></div>
+          <img id="editor-image" alt="Editor preview" />
+          <div class="editor-crosshair">+</div>
+        </div>
+        <div class="modal-actions">
+          <button id="cancel-editor-button" class="secondary-button wide-button">Cancel</button>
+          <button id="save-editor-button" class="primary-button wide-button">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="compatibility-modal" class="modal-shell hidden" aria-hidden="true">
+      <div class="modal-panel compatibility-panel">
+        <div class="modal-header">
+          <div>
+            <p class="section-label">Device Compatibility</p>
+            <h2>Supported Kraken LCDs</h2>
+          </div>
+          <div class="modal-header-actions">
+            <button id="detect-device-button" class="ghost-button compact-button">Run Detection</button>
+            <button id="close-compatibility-button" class="icon-button">x</button>
+          </div>
+        </div>
+        <div class="detection-card">
+          <div>
+            <p class="section-label">Detection</p>
+            <h3 id="detected-device-title">Checking for connected device...</h3>
+          </div>
+          <p id="compatibility-detection-status" class="compatibility-note">The app reads the connected Kraken model directly before deploy actions.</p>
+        </div>
+        <div id="compatibility-grid" class="compatibility-grid">
+        </div>
+      </div>
+    </div>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>

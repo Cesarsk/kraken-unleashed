@@ -1,0 +1,16 @@
+{
+  "name": "kraken-unleashed",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "main": "frontend-electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "backend:build": "cargo build --manifest-path backend-rust/Cargo.toml",
+    "backend:build:release": "cargo build --release --manifest-path backend-rust/Cargo.toml",
+    "backend:stage": "powershell -NoProfile -Command \"$env:CARGO_TARGET_DIR='backend-rust/target-runtime'; cargo build --offline --manifest-path backend-rust/Cargo.toml; New-Item -ItemType Directory -Force backend-rust/bin | Out-Null; try { Copy-Item backend-rust/target-runtime/debug/kraken-unleashed-backend.exe backend-rust/bin/kraken-unleashed-backend.exe -Force -ErrorAction Stop } catch { Write-Host 'backend-rust/bin is locked; Electron can use backend-rust/target-runtime/debug directly.' }\""
+  },
+  "devDependencies": {
+    "electron": "^31.7.7"
+  }
+}
