@@ -131,11 +131,26 @@ set KRAKEN_RUST_BACKEND_BIN=C:\full\path\to\kraken-unleashed-backend.exe
 
 GitHub Actions packaging is defined in [`.github/workflows/release.yml`](./.github/workflows/release.yml).
 
-- pushing a tag like `v0.1.0` builds the Windows installer and portable executable, then publishes them to the GitHub release for that tag
-- manual runs from `workflow_dispatch` build the same artifacts without publishing a GitHub release
-- the workflow validates that the pushed tag matches `package.json` version before publishing
+- every merge to `main` builds the Windows installer and portable executable, generates `SHA256SUMS.txt`, and updates the rolling `edge` prerelease on GitHub
+- pushing a tag like `v1.0.0` builds the same assets and publishes a stable GitHub release for that tag
+- the workflow validates that the pushed stable tag matches `package.json` version before publishing
+- pull requests into `main` are validated by [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
 
 The release job uses `electron-builder`, bundles the Rust backend from `dist-resources/backend`, and writes user data to the normal Electron `userData` location instead of the install directory.
+
+## Versioning
+
+Use SemVer for stable releases:
+
+- `v1.0.1` for fixes and packaging-only updates
+- `v1.1.0` for new user-facing features or support for more devices without breaking existing flows
+- `v2.0.0` for breaking changes in packaging, CLI behavior, config layout, or compatibility expectations
+
+Recommended release model:
+
+- `main` is always releasable and publishes the rolling `edge` prerelease automatically
+- stable releases happen only when you intentionally bump `package.json` and create a matching `vX.Y.Z` tag
+- the GitHub release assets are the installer, portable executable, metadata files, and `SHA256SUMS.txt` so users can download and verify what they install
 
 ### Optional VirusTotal scan
 
