@@ -1,6 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('krakenApp', {
+  getAppMeta: () => ipcRenderer.invoke('app:get-app-meta'),
+  getSettings: () => ipcRenderer.invoke('app:get-settings'),
+  updateSettings: (patch) => ipcRenderer.invoke('app:update-settings', patch),
   getDeviceInfo: () => ipcRenderer.invoke('app:get-device-info'),
   setBrightness: (value) => ipcRenderer.invoke('app:set-brightness', value),
   recoverLiquid: () => ipcRenderer.invoke('app:recover-liquid'),
@@ -15,7 +18,6 @@ contextBridge.exposeInMainWorld('krakenApp', {
   savePreset: (assetPath, preset) => ipcRenderer.invoke('app:save-preset', assetPath, preset),
   searchGifs: (query) => ipcRenderer.invoke('app:search-gifs', query),
   downloadSearchResult: (payload) => ipcRenderer.invoke('app:download-search-result', payload),
-  openGifBrowser: (query) => ipcRenderer.invoke('app:open-gif-browser', query),
   onDeployProgress: (listener) => {
     const wrapped = (_event, payload) => listener(payload);
     ipcRenderer.on('app:deploy-progress', wrapped);

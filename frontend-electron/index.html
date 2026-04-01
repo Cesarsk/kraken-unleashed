@@ -14,40 +14,15 @@
           <h1>KRAKEN UNLEASHED</h1>
         </div>
         <div class="topbar-meta">
-          <span id="device-tag" class="device-tag device-tag--checking">Detecting...</span>
+          <span id="app-version" class="app-version">v1.0</span>
+          <button id="device-tag" class="device-tag device-tag--checking" type="button">Detecting...</button>
         </div>
       </header>
       <p id="status-line" class="sr-only" aria-live="polite">Ready to deploy a GIF directly to the display.</p>
 
       <main class="panel">
-        <section class="hero-row">
-          <div class="controls-row">
-            <label class="brightness-control">
-              <span>Brightness</span>
-              <input id="brightness-slider" type="range" min="0" max="100" value="100" />
-              <div class="control-button-stack">
-                <button id="display-power-button" class="ghost-button compact-button">Shutdown LCD</button>
-                <button id="recover-button" class="ghost-button compact-button">Restore Liquid Screen</button>
-              </div>
-            </label>
-
-            <label class="mode-select">
-              <span>Mode</span>
-              <select id="mode-select" disabled>
-                <option>GIF Only</option>
-              </select>
-            </label>
-          </div>
-        </section>
-
         <section class="content-grid">
           <div class="left-column">
-            <div class="actions-row">
-              <button id="upload-button" class="primary-button">Upload</button>
-              <button id="browse-button" class="secondary-button">Open Gallery</button>
-              <button id="compatibility-button" class="ghost-button">Compatibility</button>
-            </div>
-
             <p class="support-copy">
               Supports GIF only. The app writes directly to the LCD over USB and does not require vendor control software.
             </p>
@@ -63,20 +38,27 @@
               <div class="search-row">
                 <input id="search-input" class="search-input" type="text" placeholder="Search for black hole, synthwave, nyan cat..." />
                 <button id="search-button" class="secondary-button">Search</button>
-                <button id="free-browser-button" class="ghost-button">Free Browser</button>
               </div>
-              <p id="search-status" class="search-status">Search downloads GIFs into your local gallery. If search is unavailable, set `KLIPY_API_KEY` and relaunch the app.</p>
+              <p id="search-status" class="search-status">Search downloads GIFs into your local gallery. Click Add to save a result into the app and deploy it like any other GIF.</p>
+              <div id="search-pagination" class="search-pagination hidden" aria-hidden="true">
+                <button id="search-prev-button" class="ghost-button compact-button" disabled>Previous</button>
+                <span id="search-page-label" class="search-page-label">Page 1</span>
+                <button id="search-next-button" class="ghost-button compact-button" disabled>Next</button>
+              </div>
               <div id="search-results" class="search-results"></div>
             </div>
 
             <div class="selection-card">
-              <div>
+              <div class="selection-copy">
                 <p class="section-label">Selected asset</p>
                 <h3 id="selected-name">Nothing selected yet</h3>
               </div>
-              <div class="selection-actions">
-                <button id="edit-button" class="secondary-button" disabled>Editor</button>
-                <button id="write-button" class="primary-button wide-button" disabled>Deploy</button>
+              <div class="selection-toolbar">
+                <button id="upload-button" class="secondary-button">Browse GIF</button>
+                <div class="selection-actions">
+                  <button id="edit-button" class="secondary-button" disabled>Editor</button>
+                  <button id="write-button" class="primary-button wide-button" disabled>Deploy</button>
+                </div>
               </div>
               <div id="deploy-progress" class="deploy-progress hidden" aria-hidden="true">
                 <div class="deploy-progress-meta">
@@ -91,8 +73,15 @@
 
             <div class="history-header">
               <div>
-                <p class="section-label">Previous Images</p>
                 <h3>Gallery</h3>
+              </div>
+              <div class="history-actions">
+                <div id="gallery-pagination" class="gallery-pagination">
+                  <button id="gallery-prev-button" class="ghost-button compact-button" disabled>Previous</button>
+                  <span id="gallery-page-label" class="history-limit">Page 1</span>
+                  <button id="gallery-next-button" class="ghost-button compact-button" disabled>Next</button>
+                </div>
+                <button id="browse-button" class="secondary-button compact-button">Open Gallery</button>
               </div>
             </div>
             <div id="gallery-strip" class="gallery-strip"></div>
@@ -107,10 +96,41 @@
 
           <div class="preview-column">
             <div class="preview-frame">
-              <button id="rotate-button" class="link-button rotate-link">Rotate Display: <span id="rotation-label">0 deg</span></button>
+              <button id="rotate-button" class="secondary-button compact-button rotate-button">Rotate Display</button>
               <div class="preview-ring">
-                <img id="preview-image" alt="LCD preview" />
-                <div id="preview-placeholder" class="preview-placeholder">Preview</div>
+                <div class="preview-viewport">
+                  <img id="preview-image" alt="LCD preview" />
+                  <div id="preview-placeholder" class="preview-placeholder">Preview</div>
+                </div>
+              </div>
+              <p id="rotation-label" class="rotation-note">Current rotation: 0 deg</p>
+            </div>
+            <div class="controls-card">
+              <div class="controls-row">
+                <label class="brightness-control">
+                  <span>Brightness</span>
+                  <input id="brightness-slider" type="range" min="0" max="100" value="100" />
+                  <div class="control-button-stack">
+                    <button id="display-power-button" class="ghost-button compact-button">Shutdown LCD</button>
+                    <button id="recover-button" class="ghost-button compact-button">Restore Display</button>
+                  </div>
+                </label>
+
+                <label class="mode-select">
+                  <span class="mode-label">
+                    <span>Mode</span>
+                    <span class="mode-badge">Coming Soon</span>
+                  </span>
+                  <select id="mode-select" disabled>
+                    <option>GIF Only</option>
+                    <option>Clock (Coming Soon)</option>
+                    <option>Web (Coming Soon)</option>
+                    <option>Text (Coming Soon)</option>
+                  </select>
+                  <div class="mode-settings-row">
+                    <button id="settings-button" class="ghost-button compact-button mode-settings-button" type="button">Settings</button>
+                  </div>
+                </label>
               </div>
             </div>
             <div class="support-card">
@@ -171,6 +191,10 @@
         <div class="editor-toolbar">
           <p class="modal-copy">Drag to reposition. Scroll to zoom. Save when the GIF sits correctly inside the LCD circle.</p>
           <div class="editor-stats">
+            <div class="zoom-button-group">
+              <button id="zoom-out-button" class="ghost-button compact-button" type="button" aria-label="Zoom out">-</button>
+              <button id="zoom-in-button" class="ghost-button compact-button" type="button" aria-label="Zoom in">+</button>
+            </div>
             <span id="editor-zoom-label">100%</span>
             <button id="reset-editor-button" class="ghost-button compact-button">Reset</button>
           </div>
@@ -208,6 +232,51 @@
           <p id="compatibility-detection-status" class="compatibility-note">The app reads the connected Kraken model directly before deploy actions.</p>
         </div>
         <div id="compatibility-grid" class="compatibility-grid">
+        </div>
+      </div>
+    </div>
+
+    <div id="settings-modal" class="modal-shell hidden" aria-hidden="true">
+      <div class="modal-panel settings-panel">
+        <div class="modal-header">
+          <div>
+            <p class="section-label">App Settings</p>
+            <h2>Startup And Tray</h2>
+          </div>
+          <button id="close-settings-button" class="icon-button">x</button>
+        </div>
+        <div class="settings-list">
+          <label class="settings-toggle">
+            <div class="settings-copy">
+              <strong>Launch on Windows startup</strong>
+              <span>Start Kraken Unleashed automatically when you sign in.</span>
+            </div>
+            <input id="setting-launch-at-login" type="checkbox" />
+          </label>
+          <label class="settings-toggle">
+            <div class="settings-copy">
+              <strong>Keep running in tray</strong>
+              <span>Closing or minimizing the window sends the app to the tray instead of quitting.</span>
+            </div>
+            <input id="setting-minimize-to-tray" type="checkbox" />
+          </label>
+          <label class="settings-toggle">
+            <div class="settings-copy">
+              <strong>Start hidden in tray</strong>
+              <span>When launched at login, keep the main window hidden until you open it from the tray.</span>
+            </div>
+            <input id="setting-start-hidden" type="checkbox" />
+          </label>
+          <label class="settings-toggle">
+            <div class="settings-copy">
+              <strong>Restore last GIF after startup</strong>
+              <span>When Windows launches the app at sign-in, detect the Kraken and redeploy the last GIF automatically.</span>
+            </div>
+            <input id="setting-restore-last-gif" type="checkbox" />
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button id="close-settings-footer-button" class="secondary-button wide-button">Close</button>
         </div>
       </div>
     </div>

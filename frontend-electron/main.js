@@ -1,7 +1,7 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 let appConfig = {};
 try {
   appConfig = require('./app-config');
@@ -21,7 +21,7 @@ const WINDOW_ICON_PATH = path.join(
   'assets',
   process.platform === 'win32' ? 'app-icon.ico' : 'app-icon.png'
 );
-const GALLERY_LIMIT = 10;
+const GALLERY_PAGE_SIZE = 6;
 const SEARCH_PAGE_SIZE = 4;
 const KLIPY_API_KEY = process.env.KLIPY_API_KEY || appConfig.klipyApiKey || '';
 const KLIPY_CLIENT_KEY = process.env.KLIPY_CLIENT_KEY || appConfig.klipyClientKey || 'kraken-unleashed';
@@ -32,9 +32,21 @@ const RUST_MANIFEST_PATH = path.join(SOURCE_ROOT, 'backend-rust', 'Cargo.toml');
 const RUST_BINARY_NAME = process.platform === 'win32'
   ? 'kraken-unleashed-backend.exe'
   : 'kraken-unleashed-backend';
+const STARTUP_ARG = '--startup';
+const APP_USER_MODEL_ID = 'com.cesarsk.krakenunleashed';
+const STARTUP_SHORTCUT_NAME = 'Kraken Unleashed.lnk';
+const DEFAULT_SETTINGS = {
+  launchAtLogin: false,
+  minimizeToTray: true,
+  startHiddenOnLaunch: true,
+  restoreLastGifOnStartup: false
+};
 let bridgeQueue = Promise.resolve();
 let mainWindow = null;
+let tray = null;
 let selectedBridge = null;
+let isQuitting = false;
+let currentSettings = null;
 const DEPLOY_PROGRESS_EVENT = 'app:deploy-progress';
 
 function ensureDir(dirPath) {
@@ -43,6 +55,14 @@ function ensureDir(dirPath) {
 
 ensureDir(ELECTRON_DATA_DIR);
 app.setPath('sessionData', ELECTRON_DATA_DIR);
+if (process.platform === 'win32') {
+  app.setAppUserModelId(APP_USER_MODEL_ID);
+}
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+}
 
 function rustBinaryCandidates() {
   const envBinary = process.env.KRAKEN_RUST_BACKEND_BIN;
@@ -129,6 +149,139 @@ function readAppState() {
 function writeAppState(nextState) {
   fs.writeFileSync(APP_STATE_PATH, JSON.stringify(nextState, null, 2));
   return nextState;
+}
+
+function getStoredSettings() {
+  const appState = readAppState();
+  return {
+    ...DEFAULT_SETTINGS,
+    ...(appState.settings || {})
+  };
+}
+
+function getLoginItemEnabled(fallback = false) {
+  if (process.platform !== 'win32') {
+    return fallback;
+  }
+
+  return fs.existsSync(getStartupShortcutPath());
+}
+
+function getStartupShortcutPath() {
+  const appDataDir = process.env.APPDATA || app.getPath('appData');
+  return path.join(
+    appDataDir,
+    'Microsoft',
+    'Windows',
+    'Start Menu',
+    'Programs',
+    'Startup',
+    STARTUP_SHORTCUT_NAME
+  );
+}
+
+function getStartupShortcutArgs() {
+  if (app.isPackaged) {
+    return STARTUP_ARG;
+  }
+
+  return `"${SOURCE_ROOT}" ${STARTUP_ARG}`;
+}
+
+function quoteForPowerShell(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+function writeStartupShortcut(shortcutPath) {
+  const targetPath = process.execPath;
+  const argumentsValue = getStartupShortcutArgs();
+  const workingDirectory = app.isPackaged ? path.dirname(process.execPath) : SOURCE_ROOT;
+  const iconLocation = `${WINDOW_ICON_PATH},0`;
+  const script = [
+    '$WshShell = New-Object -ComObject WScript.Shell',
+    `$Shortcut = $WshShell.CreateShortcut(${quoteForPowerShell(shortcutPath)})`,
+    `$Shortcut.TargetPath = ${quoteForPowerShell(targetPath)}`,
+    `$Shortcut.Arguments = ${quoteForPowerShell(argumentsValue)}`,
+    `$Shortcut.WorkingDirectory = ${quoteForPowerShell(workingDirectory)}`,
+    `$Shortcut.Description = ${quoteForPowerShell('Launch Kraken Unleashed at Windows startup')}`,
+    `$Shortcut.IconLocation = ${quoteForPowerShell(iconLocation)}`,
+    '$Shortcut.Save()'
+  ].join('; ');
+
+  execFileSync('powershell', [
+    '-NoProfile',
+    '-NonInteractive',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-Command',
+    script
+  ], {
+    windowsHide: true,
+    stdio: 'ignore'
+  });
+}
+
+function getCurrentSettings() {
+  if (currentSettings) {
+    return currentSettings;
+  }
+
+  const storedSettings = getStoredSettings();
+  currentSettings = {
+    ...storedSettings,
+    launchAtLogin: getLoginItemEnabled(storedSettings.launchAtLogin)
+  };
+  return currentSettings;
+}
+
+function persistSettings(nextSettings) {
+  const appState = readAppState();
+  writeAppState({
+    ...appState,
+    settings: nextSettings
+  });
+}
+
+function applyLaunchAtLogin(enabled) {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  const startupShortcutPath = getStartupShortcutPath();
+  if (!enabled) {
+    try {
+      if (fs.existsSync(startupShortcutPath)) {
+        fs.unlinkSync(startupShortcutPath);
+      }
+    } catch {}
+    return;
+  }
+
+  ensureDir(path.dirname(startupShortcutPath));
+  writeStartupShortcut(startupShortcutPath);
+  if (!fs.existsSync(startupShortcutPath)) {
+    throw new Error('Could not create the Windows startup shortcut.');
+  }
+}
+
+function updateSettings(patch) {
+  const nextSettings = {
+    ...getCurrentSettings(),
+    ...patch
+  };
+  if (Object.prototype.hasOwnProperty.call(patch, 'launchAtLogin')) {
+    applyLaunchAtLogin(Boolean(nextSettings.launchAtLogin));
+  }
+  nextSettings.launchAtLogin = getLoginItemEnabled(false);
+  currentSettings = nextSettings;
+  persistSettings(nextSettings);
+  refreshTrayMenu();
+  return nextSettings;
+}
+
+function shouldStartHidden() {
+  const settings = getCurrentSettings();
+  return process.argv.includes(STARTUP_ARG) && settings.launchAtLogin && settings.startHiddenOnLaunch;
 }
 
 function assetExists(assetPath) {
@@ -269,8 +422,7 @@ function listGalleryItems() {
   const supported = new Set(['.gif']);
   return collectGalleryItems(GALLERY_DIR)
     .filter((entry) => supported.has(entry.type))
-    .sort((a, b) => b.modified - a.modified)
-    .slice(0, GALLERY_LIMIT);
+    .sort((a, b) => b.modified - a.modified);
 }
 
 function getPreset(assetPath) {
@@ -362,6 +514,79 @@ function copyIntoGallery(sourcePath) {
   return targetPath;
 }
 
+function showMainWindow() {
+  const window = createWindow();
+  if (window.isMinimized()) {
+    window.restore();
+  }
+  window.show();
+  window.focus();
+  return window;
+}
+
+function hideMainWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.hide();
+  }
+}
+
+function refreshTrayMenu() {
+  if (!tray) {
+    return;
+  }
+
+  tray.setContextMenu(Menu.buildFromTemplate([
+    {
+      label: mainWindow && mainWindow.isVisible() ? 'Hide Kraken Unleashed' : 'Show Kraken Unleashed',
+      click: () => {
+        if (mainWindow && mainWindow.isVisible()) {
+          hideMainWindow();
+        } else {
+          showMainWindow();
+        }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Launch On Startup',
+      type: 'checkbox',
+      checked: getCurrentSettings().launchAtLogin,
+      click: (menuItem) => {
+        updateSettings({ launchAtLogin: menuItem.checked });
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      }
+    }
+  ]));
+}
+
+function createTray() {
+  if (tray) {
+    return tray;
+  }
+
+  tray = new Tray(WINDOW_ICON_PATH);
+  tray.setToolTip('Kraken Unleashed');
+  tray.on('double-click', () => {
+    showMainWindow();
+  });
+  tray.on('click', () => {
+    if (mainWindow && mainWindow.isVisible()) {
+      hideMainWindow();
+    } else {
+      showMainWindow();
+    }
+  });
+  refreshTrayMenu();
+  return tray;
+}
+
 function createWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.focus();
@@ -373,6 +598,7 @@ function createWindow() {
     height: 760,
     minWidth: 1020,
     minHeight: 680,
+    show: !shouldStartHidden(),
     icon: WINDOW_ICON_PATH,
     backgroundColor: '#17181d',
     autoHideMenuBar: true,
@@ -385,6 +611,25 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    refreshTrayMenu();
+  });
+
+  mainWindow.on('minimize', (event) => {
+    if (!getCurrentSettings().minimizeToTray) {
+      return;
+    }
+    event.preventDefault();
+    hideMainWindow();
+    refreshTrayMenu();
+  });
+
+  mainWindow.on('close', (event) => {
+    if (isQuitting || !getCurrentSettings().minimizeToTray) {
+      return;
+    }
+    event.preventDefault();
+    hideMainWindow();
+    refreshTrayMenu();
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -393,15 +638,20 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  mainWindow.on('show', refreshTrayMenu);
+  mainWindow.on('hide', refreshTrayMenu);
   return mainWindow;
 }
 
 ipcMain.handle('app:get-device-info', async () => enqueueBridge(['info']));
 ipcMain.handle('app:get-app-meta', async () => ({
   version: app.getVersion(),
-  galleryLimit: GALLERY_LIMIT,
-  searchPageSize: SEARCH_PAGE_SIZE
+  galleryPageSize: GALLERY_PAGE_SIZE,
+  searchPageSize: SEARCH_PAGE_SIZE,
+  launchedOnStartup: process.argv.includes(STARTUP_ARG)
 }));
+ipcMain.handle('app:get-settings', async () => getCurrentSettings());
+ipcMain.handle('app:update-settings', async (_event, patch) => updateSettings(patch || {}));
 ipcMain.handle('app:set-brightness', async (_event, value) =>
   enqueueBridge(['brightness', String(value)])
 );
@@ -477,17 +727,21 @@ ipcMain.handle('app:write-asset', async (event, payload) => {
   });
 });
 
+app.on('second-instance', () => {
+  showMainWindow();
+});
+
 app.whenReady().then(() => {
+  getCurrentSettings();
+  createTray();
   createWindow();
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    showMainWindow();
   });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (process.platform !== 'darwin' && (isQuitting || !getCurrentSettings().minimizeToTray)) {
     app.quit();
   }
 });

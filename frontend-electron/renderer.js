@@ -6,6 +6,7 @@ const state = {
   lcdPoweredOff: false,
   lastBrightness: 100,
   gallery: [],
+  galleryPage: 1,
   transform: {
     zoom: 1,
     panX: 0,
@@ -17,11 +18,17 @@ const state = {
   galleryPoller: null,
   brightnessTimer: null,
   searchResults: [],
+  searchQuery: '',
+  searchNextCursor: null,
+  searchCursorHistory: [],
+  searchPage: 1,
   searchBusy: false,
   detectionBusy: false,
   detectionPoller: null,
   lastDetectionLabel: 'Waiting for first scan.',
-  deployBusy: false
+  deployBusy: false,
+  appMeta: null,
+  settings: null
 };
 
 const compatibilityCatalog = [
@@ -51,10 +58,12 @@ const els = {
   browseButton: document.getElementById('browse-button'),
   searchInput: document.getElementById('search-input'),
   searchButton: document.getElementById('search-button'),
-  freeBrowserButton: document.getElementById('free-browser-button'),
   searchStatus: document.getElementById('search-status'),
+  searchPagination: document.getElementById('search-pagination'),
+  searchPrevButton: document.getElementById('search-prev-button'),
+  searchPageLabel: document.getElementById('search-page-label'),
+  searchNextButton: document.getElementById('search-next-button'),
   searchResults: document.getElementById('search-results'),
-  compatibilityButton: document.getElementById('compatibility-button'),
   recoverButton: document.getElementById('recover-button'),
   editButton: document.getElementById('edit-button'),
   writeButton: document.getElementById('write-button'),
@@ -62,6 +71,10 @@ const els = {
   rotationLabel: document.getElementById('rotation-label'),
   selectedName: document.getElementById('selected-name'),
   galleryStrip: document.getElementById('gallery-strip'),
+  galleryPagination: document.getElementById('gallery-pagination'),
+  galleryPrevButton: document.getElementById('gallery-prev-button'),
+  galleryPageLabel: document.getElementById('gallery-page-label'),
+  galleryNextButton: document.getElementById('gallery-next-button'),
   previewImage: document.getElementById('preview-image'),
   previewPlaceholder: document.getElementById('preview-placeholder'),
   editorModal: document.getElementById('editor-modal'),
@@ -81,7 +94,19 @@ const els = {
   compatibilityGrid: document.getElementById('compatibility-grid'),
   editorCanvas: document.getElementById('editor-canvas'),
   editorImage: document.getElementById('editor-image'),
-  editorZoomLabel: document.getElementById('editor-zoom-label')
+  zoomOutButton: document.getElementById('zoom-out-button'),
+  zoomInButton: document.getElementById('zoom-in-button'),
+  editorZoomLabel: document.getElementById('editor-zoom-label'),
+  appVersion: document.getElementById('app-version')
+  ,
+  settingsButton: document.getElementById('settings-button'),
+  settingsModal: document.getElementById('settings-modal'),
+  closeSettingsButton: document.getElementById('close-settings-button'),
+  closeSettingsFooterButton: document.getElementById('close-settings-footer-button'),
+  settingLaunchAtLogin: document.getElementById('setting-launch-at-login'),
+  settingMinimizeToTray: document.getElementById('setting-minimize-to-tray'),
+  settingStartHidden: document.getElementById('setting-start-hidden'),
+  settingRestoreLastGif: document.getElementById('setting-restore-last-gif')
 };
 
 function toFileUrl(filePath) {
@@ -96,6 +121,24 @@ function applyTransform(element, transform, scaleBase = 1) {
 
 function updateZoomLabel(value) {
   els.editorZoomLabel.textContent = `${Math.round(value * 100)}%`;
+}
+
+function setDraftZoom(nextZoom) {
+  if (!state.draftTransform) {
+    return;
+  }
+
+  state.draftTransform.zoom = Math.min(3, Math.max(1, Number(nextZoom.toFixed(2))));
+  updateZoomLabel(state.draftTransform.zoom);
+  syncEditorTransform();
+}
+
+function nudgeDraftZoom(delta) {
+  if (!state.draftTransform) {
+    return;
+  }
+
+  setDraftZoom(state.draftTransform.zoom + delta);
 }
 
 function syncPreviewTransform() {
@@ -122,6 +165,78 @@ function showToast(message, variant = 'success') {
 
 function setSearchStatus(message) {
   els.searchStatus.textContent = message;
+}
+
+function updateSearchPagination() {
+  const hasResults = state.searchResults.length > 0;
+  const shouldShow = hasResults || state.searchPage > 1 || Boolean(state.searchNextCursor);
+  els.searchPagination.classList.toggle('hidden', !shouldShow);
+  els.searchPagination.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+  els.searchPageLabel.textContent = `Page ${state.searchPage}`;
+  els.searchPrevButton.disabled = state.searchBusy || state.searchPage <= 1;
+  els.searchNextButton.disabled = state.searchBusy || !state.searchNextCursor;
+}
+
+function syncSettingsUI() {
+  if (!state.settings) {
+    return;
+  }
+
+  els.settingLaunchAtLogin.checked = Boolean(state.settings.launchAtLogin);
+  els.settingMinimizeToTray.checked = Boolean(state.settings.minimizeToTray);
+  els.settingStartHidden.checked = Boolean(state.settings.startHiddenOnLaunch);
+  els.settingRestoreLastGif.checked = Boolean(state.settings.restoreLastGifOnStartup);
+  const startupDependentDisabled = !state.settings.launchAtLogin;
+  els.settingStartHidden.disabled = startupDependentDisabled;
+  els.settingRestoreLastGif.disabled = startupDependentDisabled;
+}
+
+function openSettings() {
+  syncSettingsUI();
+  els.settingsModal.classList.remove('hidden');
+  els.settingsModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeSettings() {
+  els.settingsModal.classList.add('hidden');
+  els.settingsModal.setAttribute('aria-hidden', 'true');
+}
+
+async function updateSetting(patch, successMessage) {
+  state.settings = await window.krakenApp.updateSettings(patch);
+  syncSettingsUI();
+  if (successMessage) {
+    setStatus(successMessage);
+    showToast(successMessage);
+  }
+}
+
+function getGalleryPageSize() {
+  return state.appMeta?.galleryPageSize || 6;
+}
+
+function delay(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function syncGalleryPageToSelection() {
+  if (!state.assetPath) {
+    return;
+  }
+  const selectedIndex = state.gallery.findIndex((item) => item.path === state.assetPath);
+  if (selectedIndex === -1) {
+    return;
+  }
+  state.galleryPage = Math.floor(selectedIndex / getGalleryPageSize()) + 1;
+}
+
+function updateGalleryPagination(totalItems = state.gallery.length) {
+  const pageSize = getGalleryPageSize();
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  state.galleryPage = Math.min(totalPages, Math.max(1, state.galleryPage));
+  els.galleryPageLabel.textContent = `Page ${state.galleryPage} / ${totalPages}`;
+  els.galleryPrevButton.disabled = state.galleryPage <= 1;
+  els.galleryNextButton.disabled = state.galleryPage >= totalPages;
 }
 
 function setStatus(message) {
@@ -290,6 +405,7 @@ async function setSelectedAsset(assetPath, assetName) {
   const isSameAsset = state.assetPath === assetPath;
   state.assetPath = assetPath;
   state.assetName = assetName;
+  syncGalleryPageToSelection();
   if (!isSameAsset) {
     await loadPresetForAsset(assetPath);
   }
@@ -311,8 +427,13 @@ async function setSelectedAsset(assetPath, assetName) {
 
 function renderGallery() {
   els.galleryStrip.innerHTML = '';
+  updateGalleryPagination();
 
-  for (const item of state.gallery) {
+  const pageSize = getGalleryPageSize();
+  const startIndex = (state.galleryPage - 1) * pageSize;
+  const visibleItems = state.gallery.slice(startIndex, startIndex + pageSize);
+
+  for (const item of visibleItems) {
     const wrapper = document.createElement('div');
     wrapper.className = `gallery-item ${item.path === state.assetPath ? 'active' : ''}`;
 
@@ -355,7 +476,7 @@ async function loadPresetForAsset(assetPath) {
   if (!assetPath) {
     state.transform = { zoom: 1, panX: 0, panY: 0 };
     state.rotation = 0;
-    els.rotationLabel.textContent = `${state.rotation} deg`;
+    els.rotationLabel.textContent = `Current rotation: ${state.rotation} deg`;
     return;
   }
 
@@ -366,7 +487,7 @@ async function loadPresetForAsset(assetPath) {
     panY: preset?.panY || 0
   };
   state.rotation = preset?.rotation || 0;
-  els.rotationLabel.textContent = `${state.rotation} deg`;
+  els.rotationLabel.textContent = `Current rotation: ${state.rotation} deg`;
 }
 
 async function saveCurrentPreset() {
@@ -385,6 +506,7 @@ async function saveCurrentPreset() {
 async function refreshGallery() {
   const nextGallery = await window.krakenApp.listGallery();
   state.gallery = nextGallery;
+  updateGalleryPagination(nextGallery.length);
 
   if (state.assetPath) {
     const stillExists = await window.krakenApp.assetExists(state.assetPath);
@@ -398,6 +520,7 @@ async function refreshGallery() {
 
 function renderSearchResults() {
   els.searchResults.innerHTML = '';
+  updateSearchPagination();
 
   if (state.searchResults.length === 0) {
     return;
@@ -475,7 +598,7 @@ async function buildPreparedGifPayload() {
   };
 }
 
-async function runSearch() {
+async function runSearch({ cursor = '', direction = 'fresh' } = {}) {
   const query = els.searchInput.value.trim();
   if (!query || state.searchBusy) {
     return;
@@ -483,36 +606,67 @@ async function runSearch() {
 
   state.searchBusy = true;
   els.searchButton.disabled = true;
-  setSearchStatus(`Searching KLIPY for "${query}"...`);
+  els.searchPrevButton.disabled = true;
+  els.searchNextButton.disabled = true;
+  if (direction === 'next') {
+    setSearchStatus(`Loading more KLIPY results for "${query}"...`);
+  } else if (direction === 'prev') {
+    setSearchStatus(`Loading previous KLIPY results for "${query}"...`);
+  } else {
+    setSearchStatus(`Searching KLIPY for "${query}"...`);
+  }
 
   try {
-    state.searchResults = await window.krakenApp.searchGifs(query);
+    const response = await window.krakenApp.searchGifs({ query, cursor });
+    if (direction === 'fresh') {
+      state.searchQuery = query;
+      state.searchCursorHistory = [];
+      state.searchPage = 1;
+    } else if (direction === 'next') {
+      state.searchCursorHistory.push(cursor);
+      state.searchPage += 1;
+    } else if (direction === 'prev') {
+      state.searchPage = Math.max(1, state.searchPage - 1);
+    }
+
+    state.searchResults = response.results || [];
+    state.searchNextCursor = response.nextCursor || null;
     renderSearchResults();
     setSearchStatus(
       state.searchResults.length > 0
-        ? `Found ${state.searchResults.length} GIFs for "${query}".`
+        ? `Showing ${state.searchResults.length} KLIPY GIFs for "${query}".`
         : `No GIFs found for "${query}".`
     );
   } catch (error) {
     state.searchResults = [];
+    state.searchNextCursor = null;
     renderSearchResults();
     setSearchStatus(error.message);
     showToast(error.message, 'error');
   } finally {
     state.searchBusy = false;
     els.searchButton.disabled = false;
+    updateSearchPagination();
   }
 }
 
-async function writeCurrentAsset() {
+async function writeCurrentAsset(options = {}) {
   if (!state.assetPath || !state.deviceInfo || state.deployBusy) {
-    return;
+    return false;
   }
+
+  const {
+    initialStatus,
+    successStatus,
+    suppressSuccessToast = false,
+    suppressErrorToast = false,
+    rethrowOnError = false
+  } = options;
 
   state.deployBusy = true;
   setDeviceControlState(Boolean(state.deviceInfo));
   setDeployProgress(2, `Starting deploy for ${state.assetName}...`);
-  setStatus(`Preparing ${state.assetName} for the LCD...`);
+  setStatus(initialStatus || `Preparing ${state.assetName} for the LCD...`);
 
   try {
     const preparedPayload = await buildPreparedGifPayload();
@@ -526,17 +680,62 @@ async function writeCurrentAsset() {
       lastDeployedAt: new Date().toISOString()
     });
     await new Promise((resolve) => window.setTimeout(resolve, 220));
-    setStatus(result.message || `${state.assetName} deployed successfully.`);
-    showToast(result.message || 'GIF deployed to LCD.');
+    setStatus(successStatus || result.message || `${state.assetName} deployed successfully.`);
+    if (!suppressSuccessToast) {
+      showToast(result.message || 'GIF deployed to LCD.');
+    }
+    return true;
   } catch (error) {
     const previousValue = Number.parseInt(els.deployProgressValue.textContent, 10) || 0;
     setDeployProgress(Math.max(previousValue, 1), error.message || 'Write failed.', 'error');
     setStatus('Write failed.');
-    showToast(error.message, 'error');
+    if (!suppressErrorToast) {
+      showToast(error.message, 'error');
+    }
+    if (rethrowOnError) {
+      throw error;
+    }
+    return false;
   } finally {
     state.deployBusy = false;
     setDeviceControlState(Boolean(state.deviceInfo));
   }
+}
+
+async function restoreLastGifOnStartupIfNeeded() {
+  if (!state.appMeta?.launchedOnStartup || !state.settings?.restoreLastGifOnStartup || !state.assetPath) {
+    return;
+  }
+
+  setStatus('Waiting for Kraken device to restore the last GIF...');
+  const maxAttempts = 12;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    if (!state.deviceInfo) {
+      await detectDevice({ silent: true });
+    }
+
+    if (state.deviceInfo) {
+      try {
+        const restored = await writeCurrentAsset({
+          initialStatus: `Restoring ${state.assetName} after startup...`,
+          successStatus: `${state.assetName} restored after startup.`,
+          suppressSuccessToast: true,
+          suppressErrorToast: true,
+          rethrowOnError: true
+        });
+        if (restored) {
+          return;
+        }
+      } catch {}
+    }
+
+    if (attempt < maxAttempts) {
+      await delay(3000);
+    }
+  }
+
+  setStatus('Startup restore skipped. The Kraken device was not ready.');
 }
 
 window.krakenApp.onDeployProgress((payload) => {
@@ -582,10 +781,8 @@ function onEditorWheel(event) {
     return;
   }
   event.preventDefault();
-  const nextZoom = state.draftTransform.zoom + (event.deltaY < 0 ? 0.08 : -0.08);
-  state.draftTransform.zoom = Math.min(3, Math.max(1, Number(nextZoom.toFixed(2))));
-  updateZoomLabel(state.draftTransform.zoom);
-  syncEditorTransform();
+  const step = event.shiftKey ? 0.01 : 0.03;
+  nudgeDraftZoom(event.deltaY < 0 ? step : -step);
 }
 
 function clampPan(value) {
@@ -636,9 +833,14 @@ async function boot() {
   renderCompatibility();
   resetDeployProgress();
   setDeviceControlState(false);
+  state.appMeta = await window.krakenApp.getAppMeta();
+  state.settings = await window.krakenApp.getSettings();
+  els.appVersion.textContent = `v${state.appMeta.version}`;
+  syncSettingsUI();
   await detectDevice();
   await refreshGallery();
   await restoreLastDeployedAsset();
+  await restoreLastGifOnStartupIfNeeded();
 
   state.galleryPoller = window.setInterval(() => {
     refreshGallery().catch(() => {});
@@ -662,20 +864,48 @@ els.uploadButton.addEventListener('click', async () => {
 els.browseButton.addEventListener('click', async () => {
   await window.krakenApp.openGalleryFolder();
 });
+els.galleryPrevButton.addEventListener('click', () => {
+  if (state.galleryPage <= 1) {
+    return;
+  }
+  state.galleryPage -= 1;
+  renderGallery();
+});
+els.galleryNextButton.addEventListener('click', () => {
+  const totalPages = Math.max(1, Math.ceil(state.gallery.length / getGalleryPageSize()));
+  if (state.galleryPage >= totalPages) {
+    return;
+  }
+  state.galleryPage += 1;
+  renderGallery();
+});
 
 els.searchButton.addEventListener('click', runSearch);
-els.freeBrowserButton.addEventListener('click', async () => {
-  await window.krakenApp.openGifBrowser(els.searchInput.value.trim());
-});
 els.searchInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
     runSearch();
   }
 });
+els.searchPrevButton.addEventListener('click', () => {
+  if (state.searchBusy || state.searchPage <= 1) {
+    return;
+  }
+  const previousCursor = state.searchPage <= 2
+    ? ''
+    : state.searchCursorHistory[state.searchCursorHistory.length - 2] || '';
+  state.searchCursorHistory = state.searchCursorHistory.slice(0, -1);
+  runSearch({ cursor: previousCursor, direction: 'prev' }).catch(() => {});
+});
+els.searchNextButton.addEventListener('click', () => {
+  if (state.searchBusy || !state.searchNextCursor) {
+    return;
+  }
+  runSearch({ cursor: state.searchNextCursor, direction: 'next' }).catch(() => {});
+});
 
 els.writeButton.addEventListener('click', writeCurrentAsset);
 els.editButton.addEventListener('click', openEditor);
-els.compatibilityButton.addEventListener('click', openCompatibility);
+els.deviceTag.addEventListener('click', openCompatibility);
 els.detectDeviceButton.addEventListener('click', () => {
   detectDevice().catch(() => {});
 });
@@ -683,8 +913,8 @@ els.detectDeviceButton.addEventListener('click', () => {
 els.recoverButton.addEventListener('click', async () => {
   try {
     const result = await window.krakenApp.recoverLiquid();
-    setStatus(result.message || 'Liquid screen restored.');
-    showToast(result.message || 'Liquid screen restored.');
+    setStatus(result.message || 'Display restored.');
+    showToast(result.message || 'Display restored.');
   } catch (error) {
     showToast(error.message, 'error');
   }
@@ -692,11 +922,59 @@ els.recoverButton.addEventListener('click', async () => {
 
 els.rotateButton.addEventListener('click', async () => {
   state.rotation = (state.rotation + 90) % 360;
-  els.rotationLabel.textContent = `${state.rotation} deg`;
+  els.rotationLabel.textContent = `Current rotation: ${state.rotation} deg`;
   syncPreviewTransform();
   syncEditorTransform();
   await saveCurrentPreset();
-  setStatus(`Rotation set to ${state.rotation} deg. Click Deploy to write the updated image to the LCD.`);
+  setStatus('Rotation updated. Click Deploy to write the updated image to the LCD.');
+});
+
+els.settingsButton.addEventListener('click', openSettings);
+els.closeSettingsButton.addEventListener('click', closeSettings);
+els.closeSettingsFooterButton.addEventListener('click', closeSettings);
+els.settingLaunchAtLogin.addEventListener('change', async (event) => {
+  try {
+    await updateSetting(
+      { launchAtLogin: event.target.checked },
+      event.target.checked ? 'Launch on startup enabled.' : 'Launch on startup disabled.'
+    );
+  } catch (error) {
+    event.target.checked = !event.target.checked;
+    showToast(error.message, 'error');
+  }
+});
+els.settingMinimizeToTray.addEventListener('change', async (event) => {
+  try {
+    await updateSetting(
+      { minimizeToTray: event.target.checked },
+      event.target.checked ? 'Close-to-tray enabled.' : 'Close-to-tray disabled.'
+    );
+  } catch (error) {
+    event.target.checked = !event.target.checked;
+    showToast(error.message, 'error');
+  }
+});
+els.settingStartHidden.addEventListener('change', async (event) => {
+  try {
+    await updateSetting(
+      { startHiddenOnLaunch: event.target.checked },
+      event.target.checked ? 'Startup tray launch enabled.' : 'Startup tray launch disabled.'
+    );
+  } catch (error) {
+    event.target.checked = !event.target.checked;
+    showToast(error.message, 'error');
+  }
+});
+els.settingRestoreLastGif.addEventListener('change', async (event) => {
+  try {
+    await updateSetting(
+      { restoreLastGifOnStartup: event.target.checked },
+      event.target.checked ? 'Startup GIF restore enabled.' : 'Startup GIF restore disabled.'
+    );
+  } catch (error) {
+    event.target.checked = !event.target.checked;
+    showToast(error.message, 'error');
+  }
 });
 
 els.brightnessSlider.addEventListener('input', async (event) => {
@@ -731,6 +1009,12 @@ els.saveEditorButton.addEventListener('click', () => {
   closeEditor();
 });
 els.resetEditorButton.addEventListener('click', resetDraftTransform);
+els.zoomOutButton.addEventListener('click', () => {
+  nudgeDraftZoom(-0.03);
+});
+els.zoomInButton.addEventListener('click', () => {
+  nudgeDraftZoom(0.03);
+});
 els.closeCompatibilityButton.addEventListener('click', closeCompatibility);
 els.editorCanvas.addEventListener('wheel', onEditorWheel, { passive: false });
 els.editorCanvas.addEventListener('pointerdown', onEditorPointerDown);
@@ -739,5 +1023,12 @@ window.addEventListener('focus', () => {
 });
 window.addEventListener('pointermove', onEditorPointerMove);
 window.addEventListener('pointerup', onEditorPointerUp);
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    closeEditor();
+    closeCompatibility();
+    closeSettings();
+  }
+});
 
 boot();
