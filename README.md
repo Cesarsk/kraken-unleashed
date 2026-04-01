@@ -144,7 +144,7 @@ set KRAKEN_RUST_BACKEND_BIN=C:\full\path\to\kraken-unleashed-backend.exe
 
 GitHub Actions automation is defined in [`.github/workflows/release.yml`](./.github/workflows/release.yml) and [`.github/workflows/ci.yml`](./.github/workflows/ci.yml).
 
-- every merge to `main` builds the Windows installer, generates `SHA256SUMS.txt`, and updates the rolling `edge` prerelease on GitHub
+- every merge to `main` builds the Windows installer, generates `SHA256SUMS.txt`, uploads the VirusTotal summary, and updates the rolling `main` prerelease on GitHub
 - pushing a tag like `v1.0.0` builds the same installer assets and publishes a stable GitHub release for that tag
 - the workflow validates that a stable tag matches the `package.json` version before publishing
 - pull requests into `main` are validated by CI before release flow changes land
@@ -178,9 +178,19 @@ Stable releases follow SemVer:
 
 Recommended release model:
 
-- `main` stays releasable and publishes the rolling `edge` prerelease automatically
-- stable releases happen only when `package.json` is intentionally bumped and a matching `vX.Y.Z` tag is created
-- GitHub release assets should include the installer, metadata files, and `SHA256SUMS.txt` so users can verify what they install
+- `main` is always releasable and publishes the rolling `main` prerelease automatically
+- stable releases happen only when you intentionally bump `package.json` and create a matching `vX.Y.Z` tag
+- the GitHub release assets are the installer, metadata files, `SHA256SUMS.txt`, and VirusTotal files so users can download and verify what they install
+
+### Optional VirusTotal scan
+
+The release workflow uploads the generated Windows installer to VirusTotal after packaging and publishes both a human-readable summary and the raw report alongside the release assets.
+
+Notes:
+
+- `VT_API_KEY` is required for published releases
+- the workflow scans the installer artifact to keep the public API request count low
+- if you need `libusb-1.0.dll` bundled explicitly, provide it before packaging or set `KRAKEN_LIBUSB_DLL` during the build
 
 ## Roadmap
 
