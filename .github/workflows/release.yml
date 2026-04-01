@@ -68,6 +68,26 @@ jobs:
 
           Set-Content -Path dist\SHA256SUMS.txt -Value $lines
 
+      - name: Require VirusTotal configuration
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace("${{ secrets.VT_API_KEY }}")) {
+            throw "VT_API_KEY is required for published releases."
+          }
+
+      - name: Submit installer to VirusTotal
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem dist\*setup*.exe | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $installer) {
+            throw "No Windows installer artifact found for VirusTotal upload."
+          }
+
+          node scripts/upload-virustotal.js $installer
+          Copy-Item dist\virustotal\summary.md dist\VIRUSTOTAL.md -Force
+          Copy-Item dist\virustotal\report.json dist\virustotal-report.json -Force
+          Get-Content dist\VIRUSTOTAL.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
       - name: Upload packaged artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -77,6 +97,8 @@ jobs:
             dist/*.blockmap
             dist/*.yml
             dist/SHA256SUMS.txt
+            dist/VIRUSTOTAL.md
+            dist/virustotal-report.json
             !dist/builder-debug.yml
           if-no-files-found: error
 
@@ -108,21 +130,24 @@ jobs:
           }
 
           $releaseFiles = Get-ChildItem dist -File | Where-Object {
-            $_.Name -ne 'builder-debug.yml' -and ($_.Extension -in '.exe', '.blockmap', '.yml' -or $_.Name -eq 'SHA256SUMS.txt')
+            $_.Name -ne 'builder-debug.yml' -and (
+              $_.Extension -in '.exe', '.blockmap', '.yml' -or
+              $_.Name -in 'SHA256SUMS.txt', 'VIRUSTOTAL.md', 'virustotal-report.json'
+            )
           } | Sort-Object Name | Select-Object -ExpandProperty FullName
 
           gh release upload $tag $releaseFiles `
             --repo Cesarsk/kraken-unleashed `
             --clobber
 
-      - name: Publish rolling edge release
+      - name: Publish rolling main release
         if: ${{ github.ref == 'refs/heads/main' }}
         shell: pwsh
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f edge "${{ github.sha }}"
-          git push origin refs/tags/edge --force
+          git tag -f main "${{ github.sha }}"
+          git push origin refs/tags/main --force
 
           $shortSha = "${{ github.sha }}".Substring(0, 7)
           $notes = @"
@@ -131,45 +156,35 @@ jobs:
           Commit: ${{ github.sha }}
           "@
 
-          gh release view edge --repo Cesarsk/kraken-unleashed *> $null
+          gh release view main --repo Cesarsk/kraken-unleashed *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create edge `
+            gh release create main `
               --repo Cesarsk/kraken-unleashed `
-              --title "Edge" `
+              --title "Main" `
               --notes $notes `
               --prerelease
           } else {
-            gh release edit edge `
+            gh release edit main `
               --repo Cesarsk/kraken-unleashed `
-              --title "Edge" `
+              --title "Main" `
               --notes $notes `
               --prerelease
           }
 
           $releaseFiles = Get-ChildItem dist -File | Where-Object {
-            $_.Name -ne 'builder-debug.yml' -and ($_.Extension -in '.exe', '.blockmap', '.yml' -or $_.Name -eq 'SHA256SUMS.txt')
+            $_.Name -ne 'builder-debug.yml' -and (
+              $_.Extension -in '.exe', '.blockmap', '.yml' -or
+              $_.Name -in 'SHA256SUMS.txt', 'VIRUSTOTAL.md', 'virustotal-report.json'
+            )
           } | Sort-Object Name | Select-Object -ExpandProperty FullName
 
-          gh release upload edge $releaseFiles `
+          gh release upload main $releaseFiles `
             --repo Cesarsk/kraken-unleashed `
             --clobber
 
-          "Published edge release from $shortSha." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-
-      - name: Submit installer to VirusTotal
-        if: ${{ env.VT_API_KEY != '' && hashFiles('dist/*setup*.exe') != '' }}
-        shell: pwsh
-        run: |
-          $installer = Get-ChildItem dist\*setup*.exe | Select-Object -First 1 -ExpandProperty FullName
-          if (-not $installer) {
-            throw "No Windows installer artifact found for VirusTotal upload."
-          }
-
-          node scripts/upload-virustotal.js $installer
-          Get-Content dist\virustotal\summary.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "Published main release from $shortSha." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Upload VirusTotal report
-        if: ${{ env.VT_API_KEY != '' && hashFiles('dist/virustotal/*') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: virustotal-report
