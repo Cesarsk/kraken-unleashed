@@ -23,12 +23,15 @@ const state = {
   searchCursorHistory: [],
   searchPage: 1,
   searchBusy: false,
+  searchSessionOpen: false,
   detectionBusy: false,
   detectionPoller: null,
   lastDetectionLabel: 'Waiting for first scan.',
   deployBusy: false,
+  deployProgressValue: 0,
   appMeta: null,
-  settings: null
+  settings: null,
+  searchPreviewItem: null
 };
 
 const compatibilityCatalog = [
@@ -58,12 +61,20 @@ const els = {
   browseButton: document.getElementById('browse-button'),
   searchInput: document.getElementById('search-input'),
   searchButton: document.getElementById('search-button'),
+  searchSession: document.getElementById('search-session'),
+  searchSessionTitle: document.getElementById('search-session-title'),
+  searchCloseButton: document.getElementById('search-close-button'),
   searchStatus: document.getElementById('search-status'),
   searchPagination: document.getElementById('search-pagination'),
   searchPrevButton: document.getElementById('search-prev-button'),
   searchPageLabel: document.getElementById('search-page-label'),
   searchNextButton: document.getElementById('search-next-button'),
   searchResults: document.getElementById('search-results'),
+  searchPreviewModal: document.getElementById('search-preview-modal'),
+  closeSearchPreviewButton: document.getElementById('close-search-preview-button'),
+  searchPreviewTitle: document.getElementById('search-preview-title'),
+  searchPreviewMeta: document.getElementById('search-preview-meta'),
+  searchPreviewImage: document.getElementById('search-preview-image'),
   recoverButton: document.getElementById('recover-button'),
   editButton: document.getElementById('edit-button'),
   writeButton: document.getElementById('write-button'),
@@ -72,9 +83,14 @@ const els = {
   selectedName: document.getElementById('selected-name'),
   galleryStrip: document.getElementById('gallery-strip'),
   galleryPagination: document.getElementById('gallery-pagination'),
+  galleryDeleteButton: document.getElementById('gallery-delete-button'),
   galleryPrevButton: document.getElementById('gallery-prev-button'),
   galleryPageLabel: document.getElementById('gallery-page-label'),
   galleryNextButton: document.getElementById('gallery-next-button'),
+  galleryModal: document.getElementById('gallery-modal'),
+  closeGalleryButton: document.getElementById('close-gallery-button'),
+  galleryModalMeta: document.getElementById('gallery-modal-meta'),
+  galleryModalGrid: document.getElementById('gallery-modal-grid'),
   previewImage: document.getElementById('preview-image'),
   previewPlaceholder: document.getElementById('preview-placeholder'),
   editorModal: document.getElementById('editor-modal'),
@@ -167,6 +183,31 @@ function setSearchStatus(message) {
   els.searchStatus.textContent = message;
 }
 
+function syncSearchSessionUI() {
+  const open = state.searchSessionOpen;
+  els.searchSession.classList.toggle('hidden', !open);
+  els.searchSession.setAttribute('aria-hidden', open ? 'false' : 'true');
+  if (!open) {
+    return;
+  }
+
+  if (state.searchBusy) {
+    els.searchSessionTitle.textContent = 'Searching...';
+    return;
+  }
+
+  if (state.searchQuery) {
+    els.searchSessionTitle.textContent = `Results for "${state.searchQuery}"`;
+  } else {
+    els.searchSessionTitle.textContent = 'Results';
+  }
+}
+
+function setSearchSessionOpen(open) {
+  state.searchSessionOpen = Boolean(open);
+  syncSearchSessionUI();
+}
+
 function updateSearchPagination() {
   const hasResults = state.searchResults.length > 0;
   const shouldShow = hasResults || state.searchPage > 1 || Boolean(state.searchNextCursor);
@@ -175,6 +216,54 @@ function updateSearchPagination() {
   els.searchPageLabel.textContent = `Page ${state.searchPage}`;
   els.searchPrevButton.disabled = state.searchBusy || state.searchPage <= 1;
   els.searchNextButton.disabled = state.searchBusy || !state.searchNextCursor;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (!Number.isFinite(value) || value <= 0) {
+    return 'Unknown size';
+  }
+  if (value >= 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 1 : 2)} MB`;
+  }
+  if (value >= 1024) {
+    return `${Math.round(value / 1024)} KB`;
+  }
+  return `${value} B`;
+}
+
+function searchResultMetaLabel(item) {
+  const resolution = item.dimensions ? `${item.dimensions[0]} x ${item.dimensions[1]}` : 'GIF';
+  const sizeLabel = formatBytes(item.sizeBytes);
+  return `${resolution} | ${sizeLabel}`;
+}
+
+function searchCompressionLabel(item) {
+  const limit = state.appMeta?.deviceMaxGifBytes || 20 * 1024 * 1024;
+  if ((item.sizeBytes || 0) <= limit) {
+    return null;
+  }
+  return `Over 20 MB, will be compressed on deploy`;
+}
+
+function openSearchPreview(item) {
+  state.searchPreviewItem = item;
+  els.searchPreviewTitle.textContent = item.title;
+  const compressionLabel = searchCompressionLabel(item);
+  els.searchPreviewMeta.textContent = compressionLabel
+    ? `${searchResultMetaLabel(item)} | ${compressionLabel}`
+    : searchResultMetaLabel(item);
+  els.searchPreviewImage.src = item.downloadUrl || item.previewUrl;
+  els.searchPreviewImage.alt = item.title;
+  els.searchPreviewModal.classList.remove('hidden');
+  els.searchPreviewModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeSearchPreview() {
+  state.searchPreviewItem = null;
+  els.searchPreviewModal.classList.add('hidden');
+  els.searchPreviewModal.setAttribute('aria-hidden', 'true');
+  els.searchPreviewImage.removeAttribute('src');
 }
 
 function syncSettingsUI() {
@@ -239,24 +328,37 @@ function updateGalleryPagination(totalItems = state.gallery.length) {
   els.galleryNextButton.disabled = state.galleryPage >= totalPages;
 }
 
+function selectedGalleryItem() {
+  return state.gallery.find((item) => item.path === state.assetPath) || null;
+}
+
+function updateGalleryActions() {
+  els.galleryDeleteButton.disabled = !selectedGalleryItem() || state.deployBusy;
+}
+
 function setStatus(message) {
   els.statusLine.textContent = message;
 }
 
 function setDeployProgress(value, message, variant = 'active') {
   const clamped = Math.max(0, Math.min(100, Math.round(value)));
+  const nextValue = variant === 'active'
+    ? Math.max(state.deployProgressValue, clamped)
+    : Math.max(state.deployProgressValue, clamped);
+  state.deployProgressValue = nextValue;
   const track = els.deployProgress.querySelector('.deploy-progress-track');
   els.deployProgress.classList.remove('hidden', 'is-complete', 'is-error');
   els.deployProgress.classList.toggle('is-complete', variant === 'complete');
   els.deployProgress.classList.toggle('is-error', variant === 'error');
   els.deployProgress.setAttribute('aria-hidden', 'false');
   els.deployProgressLabel.textContent = message;
-  els.deployProgressValue.textContent = `${clamped}%`;
-  els.deployProgressFill.style.width = `${clamped}%`;
-  track?.setAttribute('aria-valuenow', String(clamped));
+  els.deployProgressValue.textContent = `${nextValue}%`;
+  els.deployProgressFill.style.width = `${nextValue}%`;
+  track?.setAttribute('aria-valuenow', String(nextValue));
 }
 
 function resetDeployProgress() {
+  state.deployProgressValue = 0;
   const track = els.deployProgress.querySelector('.deploy-progress-track');
   els.deployProgress.classList.add('hidden');
   els.deployProgress.classList.remove('is-complete', 'is-error');
@@ -280,6 +382,7 @@ function setDeviceControlState(connected) {
   els.rotateButton.disabled = !connected || !state.assetPath || state.deployBusy;
   els.editButton.disabled = !connected || !state.assetPath || state.deployBusy;
   els.writeButton.disabled = !connected || !state.assetPath || state.deployBusy;
+  updateGalleryActions();
 }
 
 async function setBrightness(value) {
@@ -423,6 +526,7 @@ async function setSelectedAsset(assetPath, assetName) {
   els.previewPlaceholder.style.display = 'none';
   syncPreviewTransform();
   setDeviceControlState(Boolean(state.deviceInfo));
+  updateGalleryActions();
 }
 
 function renderGallery() {
@@ -438,22 +542,72 @@ function renderGallery() {
     wrapper.className = `gallery-item ${item.path === state.assetPath ? 'active' : ''}`;
 
     const button = document.createElement('button');
+    button.type = 'button';
     const img = document.createElement('img');
     img.src = `${toFileUrl(item.path)}?t=${item.modified}`;
-    img.alt = item.name;
+    img.alt = item.displayName || item.name;
     button.appendChild(img);
     button.addEventListener('click', async () => {
-      await setSelectedAsset(item.path, item.name);
+      await setSelectedAsset(item.path, item.displayName || item.name);
       renderGallery();
     });
 
     const label = document.createElement('span');
-    label.textContent = item.name.length > 14 ? `${item.name.slice(0, 12)}...` : item.name;
+    const displayName = item.displayName || item.name;
+    label.textContent = displayName.length > 14 ? `${displayName.slice(0, 12)}...` : displayName;
 
     wrapper.appendChild(button);
     wrapper.appendChild(label);
     els.galleryStrip.appendChild(wrapper);
   }
+
+  updateGalleryActions();
+}
+
+function renderGalleryModal() {
+  els.galleryModalGrid.innerHTML = '';
+  const itemCount = state.gallery.length;
+  els.galleryModalMeta.textContent = itemCount === 1
+    ? '1 GIF in your local app gallery.'
+    : `${itemCount} GIFs in your local app gallery.`;
+
+  for (const item of state.gallery) {
+    const wrapper = document.createElement('div');
+    wrapper.className = `gallery-modal-item ${item.path === state.assetPath ? 'active' : ''}`;
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('aria-label', `Select ${item.displayName || item.name}`);
+    button.addEventListener('click', async () => {
+      await setSelectedAsset(item.path, item.displayName || item.name);
+      renderGallery();
+      renderGalleryModal();
+      closeGalleryModal();
+    });
+
+    const img = document.createElement('img');
+    img.src = `${toFileUrl(item.path)}?t=${item.modified}`;
+    img.alt = item.displayName || item.name;
+    button.appendChild(img);
+
+    const label = document.createElement('span');
+    label.textContent = item.displayName || item.name;
+
+    wrapper.appendChild(button);
+    wrapper.appendChild(label);
+    els.galleryModalGrid.appendChild(wrapper);
+  }
+}
+
+function openGalleryModal() {
+  renderGalleryModal();
+  els.galleryModal.classList.remove('hidden');
+  els.galleryModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeGalleryModal() {
+  els.galleryModal.classList.add('hidden');
+  els.galleryModal.setAttribute('aria-hidden', 'true');
 }
 
 async function restoreLastDeployedAsset() {
@@ -516,6 +670,9 @@ async function refreshGallery() {
   }
 
   renderGallery();
+  if (!els.galleryModal.classList.contains('hidden')) {
+    renderGalleryModal();
+  }
 }
 
 function renderSearchResults() {
@@ -529,10 +686,32 @@ function renderSearchResults() {
   for (const item of state.searchResults) {
     const card = document.createElement('div');
     card.className = 'search-result';
+    card.addEventListener('click', (event) => {
+      if (event.target.closest('button.primary-button')) {
+        return;
+      }
+      openSearchPreview(item);
+    });
+
+    const previewButton = document.createElement('button');
+    previewButton.className = 'search-result-preview';
+    previewButton.type = 'button';
+    previewButton.setAttribute('aria-label', `Preview ${item.title}`);
+    previewButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openSearchPreview(item);
+    });
 
     const thumb = document.createElement('img');
     thumb.src = item.previewUrl;
     thumb.alt = item.title;
+
+    const previewHint = document.createElement('span');
+    previewHint.className = 'search-result-preview-hint';
+    previewHint.textContent = 'Preview';
+
+    previewButton.appendChild(thumb);
+    previewButton.appendChild(previewHint);
 
     const meta = document.createElement('div');
     meta.className = 'search-result-meta';
@@ -543,12 +722,20 @@ function renderSearchResults() {
 
     const dims = document.createElement('span');
     dims.className = 'search-result-dims';
-    dims.textContent = item.dimensions ? `${item.dimensions[0]} x ${item.dimensions[1]}` : 'GIF';
+    dims.textContent = searchResultMetaLabel(item);
+
+    const compressionNote = document.createElement('span');
+    compressionNote.className = 'search-result-note';
+    const compressionLabel = searchCompressionLabel(item);
+    if (compressionLabel) {
+      compressionNote.textContent = compressionLabel;
+    }
 
     const action = document.createElement('button');
     action.className = 'primary-button compact-button';
     action.textContent = 'Add';
-    action.addEventListener('click', async () => {
+    action.addEventListener('click', async (event) => {
+      event.stopPropagation();
       action.disabled = true;
       action.textContent = 'Adding...';
       try {
@@ -557,9 +744,9 @@ function renderSearchResults() {
           title: item.title
         });
         await refreshGallery();
-        await setSelectedAsset(downloaded.path, downloaded.name);
+        await setSelectedAsset(downloaded.path, downloaded.displayName || downloaded.name);
         renderGallery();
-        showToast(`Added ${downloaded.name} to the gallery.`);
+        showToast(`Added ${downloaded.displayName || downloaded.name} to the gallery.`);
       } catch (error) {
         showToast(error.message, 'error');
       } finally {
@@ -570,7 +757,10 @@ function renderSearchResults() {
 
     meta.appendChild(title);
     meta.appendChild(dims);
-    card.appendChild(thumb);
+    if (compressionLabel) {
+      meta.appendChild(compressionNote);
+    }
+    card.appendChild(previewButton);
     card.appendChild(meta);
     card.appendChild(action);
     els.searchResults.appendChild(card);
@@ -604,7 +794,10 @@ async function runSearch({ cursor = '', direction = 'fresh' } = {}) {
     return;
   }
 
+  state.searchQuery = query;
+  setSearchSessionOpen(true);
   state.searchBusy = true;
+  syncSearchSessionUI();
   els.searchButton.disabled = true;
   els.searchPrevButton.disabled = true;
   els.searchNextButton.disabled = true;
@@ -619,7 +812,6 @@ async function runSearch({ cursor = '', direction = 'fresh' } = {}) {
   try {
     const response = await window.krakenApp.searchGifs({ query, cursor });
     if (direction === 'fresh') {
-      state.searchQuery = query;
       state.searchCursorHistory = [];
       state.searchPage = 1;
     } else if (direction === 'next') {
@@ -630,6 +822,9 @@ async function runSearch({ cursor = '', direction = 'fresh' } = {}) {
     }
 
     state.searchResults = response.results || [];
+    for (const item of state.searchResults) {
+      item.sizeBytes = item.sizeBytes || 0;
+    }
     state.searchNextCursor = response.nextCursor || null;
     renderSearchResults();
     setSearchStatus(
@@ -647,6 +842,7 @@ async function runSearch({ cursor = '', direction = 'fresh' } = {}) {
     state.searchBusy = false;
     els.searchButton.disabled = false;
     updateSearchPagination();
+    syncSearchSessionUI();
   }
 }
 
@@ -857,13 +1053,11 @@ els.uploadButton.addEventListener('click', async () => {
     return;
   }
   await refreshGallery();
-  await setSelectedAsset(picked.path, picked.name);
+  await setSelectedAsset(picked.path, picked.displayName || picked.name);
   renderGallery();
 });
 
-els.browseButton.addEventListener('click', async () => {
-  await window.krakenApp.openGalleryFolder();
-});
+els.browseButton.addEventListener('click', openGalleryModal);
 els.galleryPrevButton.addEventListener('click', () => {
   if (state.galleryPage <= 1) {
     return;
@@ -879,8 +1073,27 @@ els.galleryNextButton.addEventListener('click', () => {
   state.galleryPage += 1;
   renderGallery();
 });
+els.galleryDeleteButton.addEventListener('click', async () => {
+  const selectedItem = selectedGalleryItem();
+  if (!selectedItem || state.deployBusy) {
+    return;
+  }
+  try {
+    await window.krakenApp.deleteAsset(selectedItem.path);
+    if (state.assetPath === selectedItem.path) {
+      await setSelectedAsset(null, null);
+    }
+    await refreshGallery();
+    showToast(`Deleted ${selectedItem.displayName || selectedItem.name}.`);
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+});
 
 els.searchButton.addEventListener('click', runSearch);
+els.searchCloseButton.addEventListener('click', () => {
+  setSearchSessionOpen(false);
+});
 els.searchInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
     runSearch();
@@ -902,6 +1115,13 @@ els.searchNextButton.addEventListener('click', () => {
   }
   runSearch({ cursor: state.searchNextCursor, direction: 'next' }).catch(() => {});
 });
+els.closeSearchPreviewButton.addEventListener('click', closeSearchPreview);
+els.searchPreviewModal.addEventListener('click', (event) => {
+  if (event.target === els.searchPreviewModal) {
+    closeSearchPreview();
+  }
+});
+els.closeGalleryButton.addEventListener('click', closeGalleryModal);
 
 els.writeButton.addEventListener('click', writeCurrentAsset);
 els.editButton.addEventListener('click', openEditor);
@@ -1028,6 +1248,8 @@ window.addEventListener('keydown', (event) => {
     closeEditor();
     closeCompatibility();
     closeSettings();
+    closeSearchPreview();
+    closeGalleryModal();
   }
 });
 

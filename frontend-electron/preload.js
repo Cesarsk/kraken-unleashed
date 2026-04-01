@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('krakenApp', {
   getAppState: () => ipcRenderer.invoke('app:get-app-state'),
   saveAppState: (state) => ipcRenderer.invoke('app:save-app-state', state),
   assetExists: (assetPath) => ipcRenderer.invoke('app:asset-exists', assetPath),
+  deleteAsset: (assetPath) => ipcRenderer.invoke('app:delete-asset', assetPath),
   openGalleryFolder: () => ipcRenderer.invoke('app:open-gallery-folder'),
   pickFile: () => ipcRenderer.invoke('app:pick-file'),
   writeAsset: (payload) => ipcRenderer.invoke('app:write-asset', payload),

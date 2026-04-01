@@ -14,6 +14,7 @@ const RUNTIME_ROOT = app.isPackaged ? process.resourcesPath : SOURCE_ROOT;
 const ELECTRON_DATA_DIR = app.getPath('userData');
 const GALLERY_DIR = path.join(ELECTRON_DATA_DIR, 'gifs');
 const UPLOADS_DIR = path.join(GALLERY_DIR, 'uploads');
+const GALLERY_METADATA_PATH = path.join(ELECTRON_DATA_DIR, 'gallery-metadata.json');
 const PRESETS_PATH = path.join(ELECTRON_DATA_DIR, 'gif-presets.json');
 const APP_STATE_PATH = path.join(ELECTRON_DATA_DIR, 'app-state.json');
 const WINDOW_ICON_PATH = path.join(
@@ -23,6 +24,7 @@ const WINDOW_ICON_PATH = path.join(
 );
 const GALLERY_PAGE_SIZE = 6;
 const SEARCH_PAGE_SIZE = 4;
+const DEVICE_MAX_GIF_BYTES = 20 * 1024 * 1024;
 const KLIPY_API_KEY = process.env.KLIPY_API_KEY || appConfig.klipyApiKey || '';
 const KLIPY_CLIENT_KEY = process.env.KLIPY_CLIENT_KEY || appConfig.klipyClientKey || 'kraken-unleashed';
 const RUST_BACKEND_DIR = app.isPackaged
@@ -138,6 +140,18 @@ function writePresets(presets) {
   fs.writeFileSync(PRESETS_PATH, JSON.stringify(presets, null, 2));
 }
 
+function readGalleryMetadata() {
+  try {
+    return JSON.parse(fs.readFileSync(GALLERY_METADATA_PATH, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function writeGalleryMetadata(metadata) {
+  fs.writeFileSync(GALLERY_METADATA_PATH, JSON.stringify(metadata, null, 2));
+}
+
 function readAppState() {
   try {
     return JSON.parse(fs.readFileSync(APP_STATE_PATH, 'utf8'));
@@ -149,6 +163,15 @@ function readAppState() {
 function writeAppState(nextState) {
   fs.writeFileSync(APP_STATE_PATH, JSON.stringify(nextState, null, 2));
   return nextState;
+}
+
+function cleanDisplayName(name, fallback = 'Untitled GIF') {
+  const normalized = String(name || '')
+    .replace(/\.[^.]+$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized || fallback;
 }
 
 function getStoredSettings() {
@@ -399,6 +422,7 @@ function runBridge(args, options = {}) {
 }
 
 function collectGalleryItems(dirPath, items = []) {
+  const galleryMetadata = readGalleryMetadata();
   for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
     const fullPath = path.join(dirPath, entry.name);
     if (entry.isDirectory()) {
@@ -408,6 +432,7 @@ function collectGalleryItems(dirPath, items = []) {
 
     items.push({
       name: entry.name,
+      displayName: galleryMetadata[fullPath]?.displayName || cleanDisplayName(entry.name),
       path: fullPath,
       type: path.extname(entry.name).toLowerCase(),
       modified: fs.statSync(fullPath).mtimeMs
@@ -477,14 +502,16 @@ async function searchKlipy(request) {
       title: item.content_description || item.title || 'Untitled GIF',
       previewUrl: tinygif?.url || gif?.url,
       downloadUrl: gif?.url,
-      dimensions: gif?.dims || tinygif?.dims || null
+      dimensions: gif?.dims || tinygif?.dims || null,
+      sizeBytes: gif?.size || tinygif?.size || 0
     };
   }).filter((item) => item.previewUrl && item.downloadUrl);
 
   return {
     results,
     nextCursor: apiPayload.next || null,
-    pageSize: SEARCH_PAGE_SIZE
+    pageSize: SEARCH_PAGE_SIZE,
+    deviceMaxGifBytes: DEVICE_MAX_GIF_BYTES
   };
 }
 
@@ -499,10 +526,16 @@ async function downloadSearchResult({ url, title }) {
   const fileName = `${Date.now()}-${sanitizeFileName(title || 'klipy-result')}.gif`;
   const targetPath = path.join(UPLOADS_DIR, fileName);
   fs.writeFileSync(targetPath, Buffer.from(arrayBuffer));
+  const metadata = readGalleryMetadata();
+  metadata[targetPath] = {
+    displayName: cleanDisplayName(title, 'Klipy GIF')
+  };
+  writeGalleryMetadata(metadata);
 
   return {
     path: targetPath,
-    name: path.basename(targetPath)
+    name: path.basename(targetPath),
+    displayName: metadata[targetPath].displayName
   };
 }
 
@@ -511,7 +544,50 @@ function copyIntoGallery(sourcePath) {
   const parsed = path.parse(sourcePath);
   const targetPath = path.join(UPLOADS_DIR, `${Date.now()}-${parsed.base.replace(/\s+/g, '-')}`);
   fs.copyFileSync(sourcePath, targetPath);
-  return targetPath;
+  const metadata = readGalleryMetadata();
+  metadata[targetPath] = {
+    displayName: cleanDisplayName(parsed.name)
+  };
+  writeGalleryMetadata(metadata);
+  return {
+    path: targetPath,
+    displayName: metadata[targetPath].displayName
+  };
+}
+
+function deleteGalleryAsset(assetPath) {
+  if (!assetPath) {
+    throw new Error('Asset path is required.');
+  }
+  if (!assetExists(assetPath)) {
+    throw new Error('GIF not found.');
+  }
+
+  fs.unlinkSync(assetPath);
+
+  const galleryMetadata = readGalleryMetadata();
+  if (galleryMetadata[assetPath]) {
+    delete galleryMetadata[assetPath];
+    writeGalleryMetadata(galleryMetadata);
+  }
+
+  const presets = readPresets();
+  if (presets[assetPath]) {
+    delete presets[assetPath];
+    writePresets(presets);
+  }
+
+  const appState = readAppState();
+  if (appState.lastDeployedAssetPath === assetPath) {
+    delete appState.lastDeployedAssetPath;
+    delete appState.lastDeployedAssetName;
+    delete appState.lastDeployedAt;
+    writeAppState(appState);
+  }
+
+  return {
+    path: assetPath
+  };
 }
 
 function showMainWindow() {
@@ -648,6 +724,7 @@ ipcMain.handle('app:get-app-meta', async () => ({
   version: app.getVersion(),
   galleryPageSize: GALLERY_PAGE_SIZE,
   searchPageSize: SEARCH_PAGE_SIZE,
+  deviceMaxGifBytes: DEVICE_MAX_GIF_BYTES,
   launchedOnStartup: process.argv.includes(STARTUP_ARG)
 }));
 ipcMain.handle('app:get-settings', async () => getCurrentSettings());
@@ -662,6 +739,7 @@ ipcMain.handle('app:save-app-state', async (_event, nextState) =>
   writeAppState({ ...readAppState(), ...nextState })
 );
 ipcMain.handle('app:asset-exists', async (_event, assetPath) => assetExists(assetPath));
+ipcMain.handle('app:delete-asset', async (_event, assetPath) => deleteGalleryAsset(assetPath));
 ipcMain.handle('app:open-gallery-folder', async () => {
   ensureDir(GALLERY_DIR);
   return shell.openPath(GALLERY_DIR);
@@ -679,13 +757,17 @@ ipcMain.handle('app:pick-file', async () => {
   }
 
   const selectedPath = result.filePaths[0];
-  const storedPath = selectedPath.startsWith(GALLERY_DIR)
-    ? selectedPath
+  const storedAsset = selectedPath.startsWith(GALLERY_DIR)
+    ? {
+        path: selectedPath,
+        displayName: cleanDisplayName(path.parse(selectedPath).name)
+      }
     : copyIntoGallery(selectedPath);
 
   return {
-    path: storedPath,
-    name: path.basename(storedPath)
+    path: storedAsset.path,
+    name: path.basename(storedAsset.path),
+    displayName: storedAsset.displayName
   };
 });
 ipcMain.handle('app:get-preset', async (_event, assetPath) => getPreset(assetPath));

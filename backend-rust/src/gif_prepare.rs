@@ -108,21 +108,15 @@ pub fn prepare_gif_for_device(
     }
 
     emit_progress(52, "Encoding device-ready GIF...");
-    let encoded = encode_prepared_gif(
+    let encoded = fit_gif_to_memory(
         &factory,
         &rendered_frames,
         width as u32,
         height as u32,
         &metadata,
+        max_bytes,
         &mut emit_progress,
     )?;
-
-    if encoded.len() > max_bytes {
-        return Err(format!(
-            "GIF is too large for device memory ({:.1}MiB limit)",
-            max_bytes as f32 / (1024.0 * 1024.0)
-        ));
-    }
 
     emit_progress(72, "GIF optimized for LCD.");
     Ok(PreparedGif { bytes: encoded })
@@ -307,10 +301,12 @@ fn encode_prepared_gif(
     frames: &[Vec<u8>],
     width: u32,
     height: u32,
-    metadata: &GifMetadata,
+    delays_cs: &[u16],
+    loop_count: u16,
+    max_colors: u32,
     emit_progress: &mut impl FnMut(u8, &str),
 ) -> Result<Vec<u8>, String> {
-    let global_palette = build_global_palette(factory, frames, width, height)?;
+    let global_palette = build_global_palette(factory, frames, width, height, max_colors)?;
     let mut parsed_frames = Vec::with_capacity(frames.len());
 
     for (frame_index, frame_pixels) in frames.iter().enumerate() {
@@ -335,7 +331,8 @@ fn encode_prepared_gif(
         height as u16,
         &header_palette,
         &parsed_frames,
-        metadata,
+        delays_cs,
+        loop_count,
     ))
 }
 
@@ -345,12 +342,14 @@ fn build_global_palette(
     frames: &[Vec<u8>],
     width: u32,
     height: u32,
+    max_colors: u32,
 ) -> Result<IWICPalette, String> {
     let palette_source = build_palette_sample(frames, width, height);
     let sample_height = (palette_source.len() / (width as usize * 4)).max(1) as u32;
     let bitmap = create_bitmap_from_bgra(factory, &palette_source, width, sample_height)?;
     let palette: IWICPalette = unsafe { factory.CreatePalette() }.map_err(winerr("Could not create GIF palette"))?;
-    unsafe { palette.InitializeFromBitmap(&bitmap, 256, false) }.map_err(winerr("Could not initialize global GIF palette"))?;
+    unsafe { palette.InitializeFromBitmap(&bitmap, max_colors.clamp(2, 256), false) }
+        .map_err(winerr("Could not initialize global GIF palette"))?;
     Ok(palette)
 }
 
@@ -424,31 +423,32 @@ fn assemble_gif(
     height: u16,
     palette_rgb: &[u8],
     frames: &[ParsedSingleFrameGif],
-    metadata: &GifMetadata,
+    delays_cs: &[u16],
+    loop_count: u16,
 ) -> Vec<u8> {
+    let (packed, padded_palette) = make_gif_palette_header(palette_rgb);
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"GIF89a");
     bytes.extend_from_slice(&width.to_le_bytes());
     bytes.extend_from_slice(&height.to_le_bytes());
-    bytes.push(0xF7);
+    bytes.push(packed);
     bytes.push(0x00);
     bytes.push(0x00);
-    bytes.extend_from_slice(palette_rgb);
-    insert_netscape_extension(&mut bytes, metadata.loop_count);
+    bytes.extend_from_slice(&padded_palette);
+    insert_netscape_extension(&mut bytes, loop_count);
 
     for (index, frame) in frames.iter().enumerate() {
-        let delay = metadata
-            .delays_cs
+        let delay = delays_cs
             .get(index)
             .copied()
-            .or_else(|| metadata.delays_cs.last().copied())
+            .or_else(|| delays_cs.last().copied())
             .unwrap_or(DEFAULT_DELAY_CS)
             .max(DEFAULT_DELAY_CS);
 
         bytes.extend_from_slice(&[
             0x21, 0xF9, 0x04, 0x08, delay.to_le_bytes()[0], delay.to_le_bytes()[1], 0x00, 0x00,
         ]);
-        bytes.extend_from_slice(&frame.image_block_with_local_palette());
+        bytes.extend_from_slice(&frame.image_block);
     }
 
     bytes.push(0x3B);
@@ -456,31 +456,19 @@ fn assemble_gif(
 }
 
 #[cfg(windows)]
-struct ParsedSingleFrameGif {
-    palette_rgb: Vec<u8>,
-    image_block: Vec<u8>,
+fn make_gif_palette_header(palette_rgb: &[u8]) -> (u8, Vec<u8>) {
+    let palette_entries = (palette_rgb.len() / 3).max(2);
+    let table_entries = palette_entries.next_power_of_two().clamp(2, 256);
+    let size_bits = (table_entries.trailing_zeros() as u8).saturating_sub(1).min(7);
+    let mut padded_palette = palette_rgb.to_vec();
+    padded_palette.resize(table_entries * 3, 0);
+    (0x80 | 0x70 | size_bits, padded_palette)
 }
 
 #[cfg(windows)]
-impl ParsedSingleFrameGif {
-    fn image_block_with_local_palette(&self) -> Vec<u8> {
-        if self.image_block.len() < 10 {
-            return self.image_block.clone();
-        }
-
-        let palette_entries = (self.palette_rgb.len() / 3).max(2);
-        let local_entries = palette_entries.next_power_of_two().clamp(2, 256);
-        let size_bits = (local_entries.trailing_zeros() as u8).saturating_sub(1).min(7);
-        let mut padded_palette = self.palette_rgb.clone();
-        padded_palette.resize(local_entries * 3, 0);
-
-        let mut block = Vec::with_capacity(self.image_block.len() + padded_palette.len());
-        block.extend_from_slice(&self.image_block[..10]);
-        block[9] = (block[9] & 0x78) | 0x80 | size_bits;
-        block.extend_from_slice(&padded_palette);
-        block.extend_from_slice(&self.image_block[10..]);
-        block
-    }
+struct ParsedSingleFrameGif {
+    palette_rgb: Vec<u8>,
+    image_block: Vec<u8>,
 }
 
 #[cfg(windows)]
@@ -767,6 +755,7 @@ fn insert_netscape_extension(bytes: &mut Vec<u8>, loop_count: u16) {
         let gct_entries = 1usize << (((packed & 0x07) as usize) + 1);
         insert_at += gct_entries * 3;
     }
+    insert_at = insert_at.min(bytes.len());
 
     let mut extension = vec![0x21, 0xFF, 0x0B];
     extension.extend_from_slice(b"NETSCAPE2.0");
@@ -775,6 +764,101 @@ fn insert_netscape_extension(bytes: &mut Vec<u8>, loop_count: u16) {
     extension.extend_from_slice(&loop_count.to_le_bytes());
     extension.push(0x00);
     bytes.splice(insert_at..insert_at, extension);
+}
+
+#[cfg(windows)]
+fn fit_gif_to_memory(
+    factory: &IWICImagingFactory,
+    rendered_frames: &[Vec<u8>],
+    width: u32,
+    height: u32,
+    metadata: &GifMetadata,
+    max_bytes: usize,
+    emit_progress: &mut impl FnMut(u8, &str),
+) -> Result<Vec<u8>, String> {
+    let color_plans = [256u32, 192, 128, 96, 64, 48, 32, 24, 16];
+    let stride_plans = [1usize, 2, 3, 4, 5, 6, 8, 10, 12];
+    let mut smallest_len: Option<usize> = None;
+
+    for &stride in &stride_plans {
+        let selected_frames: Vec<Vec<u8>> = rendered_frames.iter().step_by(stride).cloned().collect();
+        if selected_frames.is_empty() {
+            continue;
+        }
+        let collapsed_delays = collapse_delays(&metadata.delays_cs, rendered_frames.len(), stride);
+
+        for &max_colors in &color_plans {
+            if stride > 1 || max_colors < 256 {
+                emit_progress(
+                    53,
+                    &format!(
+                        "Compressing GIF to fit {} MiB ({} colors, every {} frame{})...",
+                        format_mib_limit(max_bytes),
+                        max_colors,
+                        stride,
+                        if stride == 1 { "" } else { "s" }
+                    ),
+                );
+            }
+
+            let encoded = encode_prepared_gif(
+                factory,
+                &selected_frames,
+                width,
+                height,
+                &collapsed_delays,
+                metadata.loop_count,
+                max_colors,
+                emit_progress,
+            )?;
+
+            if smallest_len.map_or(true, |current| encoded.len() < current) {
+                smallest_len = Some(encoded.len());
+            }
+
+            if encoded.len() <= max_bytes {
+                return Ok(encoded);
+            }
+        }
+    }
+
+    Err(format!(
+        "GIF is too large for device memory after compression ({}MiB limit, best result: {}MiB)",
+        format_mib_limit(max_bytes),
+        format_mib_limit(smallest_len.unwrap_or(max_bytes))
+    ))
+}
+
+#[cfg(windows)]
+fn collapse_delays(source_delays: &[u16], frame_count: usize, stride: usize) -> Vec<u16> {
+    let normalized = normalized_delays(source_delays, frame_count);
+    let mut collapsed = Vec::new();
+    let mut index = 0usize;
+    while index < normalized.len() {
+        let end = (index + stride).min(normalized.len());
+        let total = normalized[index..end]
+            .iter()
+            .fold(0u32, |acc, delay| acc.saturating_add(u32::from(*delay)));
+        collapsed.push(total.clamp(u32::from(DEFAULT_DELAY_CS), u32::from(u16::MAX)) as u16);
+        index = end;
+    }
+    collapsed
+}
+
+#[cfg(windows)]
+fn normalized_delays(source_delays: &[u16], frame_count: usize) -> Vec<u16> {
+    if frame_count == 0 {
+        return Vec::new();
+    }
+    let fallback = source_delays.last().copied().unwrap_or(DEFAULT_DELAY_CS).max(DEFAULT_DELAY_CS);
+    (0..frame_count)
+        .map(|index| source_delays.get(index).copied().unwrap_or(fallback).max(DEFAULT_DELAY_CS))
+        .collect()
+}
+
+#[cfg(windows)]
+fn format_mib_limit(bytes: usize) -> String {
+    format!("{:.1}", bytes as f32 / (1024.0 * 1024.0))
 }
 
 #[cfg(windows)]

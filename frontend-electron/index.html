@@ -39,13 +39,20 @@
                 <input id="search-input" class="search-input" type="text" placeholder="Search for black hole, synthwave, nyan cat..." />
                 <button id="search-button" class="secondary-button">Search</button>
               </div>
-              <p id="search-status" class="search-status">Search downloads GIFs into your local gallery. Click Add to save a result into the app and deploy it like any other GIF.</p>
-              <div id="search-pagination" class="search-pagination hidden" aria-hidden="true">
-                <button id="search-prev-button" class="ghost-button compact-button" disabled>Previous</button>
-                <span id="search-page-label" class="search-page-label">Page 1</span>
-                <button id="search-next-button" class="ghost-button compact-button" disabled>Next</button>
+              <p class="search-help">Search downloads GIFs into your local gallery. Click Add to save a result into the app and deploy it like any other GIF.</p>
+              <div id="search-session" class="search-session hidden" aria-hidden="true">
+                <div class="search-session-header">
+                  <p id="search-session-title" class="search-session-title">Results</p>
+                  <button id="search-close-button" class="ghost-button compact-button search-close-button" type="button" aria-label="Close search results">Close</button>
+                </div>
+                <p id="search-status" class="search-status">Search results</p>
+                <div id="search-pagination" class="search-pagination hidden" aria-hidden="true">
+                  <button id="search-prev-button" class="ghost-button compact-button" disabled>Previous</button>
+                  <span id="search-page-label" class="search-page-label">Page 1</span>
+                  <button id="search-next-button" class="ghost-button compact-button" disabled>Next</button>
+                </div>
+                <div id="search-results" class="search-results"></div>
               </div>
-              <div id="search-results" class="search-results"></div>
             </div>
 
             <div class="selection-card">
@@ -77,6 +84,7 @@
               </div>
               <div class="history-actions">
                 <div id="gallery-pagination" class="gallery-pagination">
+                  <button id="gallery-delete-button" class="ghost-button compact-button destructive-button" disabled>Delete</button>
                   <button id="gallery-prev-button" class="ghost-button compact-button" disabled>Previous</button>
                   <span id="gallery-page-label" class="history-limit">Page 1</span>
                   <button id="gallery-next-button" class="ghost-button compact-button" disabled>Next</button>
@@ -278,6 +286,36 @@
         <div class="modal-actions">
           <button id="close-settings-footer-button" class="secondary-button wide-button">Close</button>
         </div>
+      </div>
+    </div>
+
+    <div id="search-preview-modal" class="modal-shell hidden" aria-hidden="true">
+      <div class="modal-panel search-preview-panel">
+        <div class="modal-header">
+          <div>
+            <p class="section-label">GIF Preview</p>
+            <h2 id="search-preview-title">Preview</h2>
+          </div>
+          <button id="close-search-preview-button" class="icon-button">x</button>
+        </div>
+        <p id="search-preview-meta" class="modal-copy">GIF preview</p>
+        <div class="search-preview-stage">
+          <img id="search-preview-image" alt="GIF preview" />
+        </div>
+      </div>
+    </div>
+
+    <div id="gallery-modal" class="modal-shell hidden" aria-hidden="true">
+      <div class="modal-panel gallery-modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="section-label">Gallery</p>
+            <h2>All GIFs</h2>
+          </div>
+          <button id="close-gallery-button" class="icon-button">x</button>
+        </div>
+        <p id="gallery-modal-meta" class="modal-copy">Browse every GIF in your local app gallery.</p>
+        <div id="gallery-modal-grid" class="gallery-modal-grid"></div>
       </div>
     </div>
 
