@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Windows-native device control | Placement editor | Rust-powered deploy pipeline
+  Windows-native device control | Placement editor | Signed Windows releases
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
   <a href="#build-from-source">Build From Source</a>
 </p>
 
-Kraken Unleashed is a desktop app for writing animated GIFs straight to supported Kraken LCD coolers. It is built for the part people actually care about: detect the screen, position the asset properly, deploy it cleanly, and recover fast if the display gets stuck.
+Kraken Unleashed is a desktop app for writing animated GIFs straight to supported Kraken LCD coolers. It focuses on the part that matters: detect the screen, line up the asset properly, deploy it cleanly, and recover fast if the display gets stuck.
 
 This project is independent and is not affiliated with or endorsed by NZXT.
 
@@ -38,7 +38,7 @@ This project is independent and is not affiliated with or endorsed by NZXT.
 - preview and fine-tune how it sits inside the LCD circle
 - rotate the display output before deployment
 - write the GIF directly to the cooler LCD
-- restore the display if it needs a clean reset
+- restore the display if the screen needs a clean reset
 
 Current status:
 
@@ -48,11 +48,11 @@ Current status:
 
 ## Download
 
-If you just want to use the app, grab the latest Windows build from the GitHub releases page:
+If you just want to use the app, grab the latest Windows build from GitHub releases:
 
 - [Latest Releases](https://github.com/Cesarsk/kraken-unleashed/releases)
 
-Release builds package the Electron app together with the Rust backend helper.
+Release builds package the Electron app together with the Rust backend helper. Official release artifacts are intended to be signed through the repository release pipeline.
 
 ## Supported Devices
 
@@ -140,34 +140,22 @@ set KRAKEN_RUST_BACKEND_BIN=C:\full\path\to\kraken-unleashed-backend.exe
 - keep competing control software closed while deploying
 - non-GIF modes are not implemented yet, even if they appear in the roadmap
 
-## Privacy
+## Release Pipeline
 
-Privacy policy: [PRIVACY.md](./PRIVACY.md)
+GitHub Actions automation is defined in [`.github/workflows/release.yml`](./.github/workflows/release.yml) and [`.github/workflows/ci.yml`](./.github/workflows/ci.yml).
 
-## Code signing policy
 - every merge to `main` builds the Windows installer, generates `SHA256SUMS.txt`, and updates the rolling `edge` prerelease on GitHub
 - pushing a tag like `v1.0.0` builds the same installer assets and publishes a stable GitHub release for that tag
-- the workflow validates that the pushed stable tag matches `package.json` version before publishing
-- pull requests into `main` are validated by [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
+- the workflow validates that a stable tag matches the `package.json` version before publishing
+- pull requests into `main` are validated by CI before release flow changes land
 
-Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+If you add a repository secret named `VT_API_KEY`, the release workflow also uploads the generated Windows installer to VirusTotal and attaches a scan summary to the workflow run.
+
+## Trust And Signing
+
+Free code signing is provided by [SignPath.io](https://about.signpath.io/), with a certificate from [SignPath Foundation](https://signpath.org/).
 
 ### Roles
-## Versioning
-
-Use SemVer for stable releases:
-
-- `v1.0.1` for fixes and packaging-only updates
-- `v1.1.0` for new user-facing features or support for more devices without breaking existing flows
-- `v2.0.0` for breaking changes in packaging, CLI behavior, config layout, or compatibility expectations
-
-Recommended release model:
-
-- `main` is always releasable and publishes the rolling `edge` prerelease automatically
-- stable releases happen only when you intentionally bump `package.json` and create a matching `vX.Y.Z` tag
-- the GitHub release assets are the installer, metadata files, and `SHA256SUMS.txt` so users can download and verify what they install
-
-### Optional VirusTotal scan
 
 - Committer and reviewer: [Cesarsk](https://github.com/Cesarsk)
 - Approver: [Cesarsk](https://github.com/Cesarsk)
@@ -179,6 +167,20 @@ Only official release artifacts built from the source code in this repository an
 ### Privacy
 
 Privacy policy: [PRIVACY.md](./PRIVACY.md)
+
+## Versioning
+
+Stable releases follow SemVer:
+
+- `v1.0.1` for fixes and packaging-only updates
+- `v1.1.0` for new user-facing features or support for more devices without breaking existing flows
+- `v2.0.0` for breaking changes in packaging, CLI behavior, config layout, or compatibility expectations
+
+Recommended release model:
+
+- `main` stays releasable and publishes the rolling `edge` prerelease automatically
+- stable releases happen only when `package.json` is intentionally bumped and a matching `vX.Y.Z` tag is created
+- GitHub release assets should include the installer, metadata files, and `SHA256SUMS.txt` so users can verify what they install
 
 ## Roadmap
 
@@ -201,16 +203,6 @@ If you want to add or validate a new model, include as much of this as you can:
 - logs, screenshots, or short notes about anything unusual
 
 Hardware validation from real devices is especially useful.
-
-## Release Notes
-
-GitHub Actions packaging is defined in [`.github/workflows/release.yml`](./.github/workflows/release.yml).
-
-- pushing a tag like `v1.0.0` builds the Windows installer and portable executable, then publishes them to the GitHub release for that tag
-- manual runs from `workflow_dispatch` build the same artifacts without publishing a GitHub release
-- the workflow validates that the pushed tag matches `package.json` version before publishing
-
-If you add a repository secret named `VT_API_KEY`, the release workflow also uploads the generated Windows installer to VirusTotal and attaches a scan summary to the workflow run.
 
 ## License
 
