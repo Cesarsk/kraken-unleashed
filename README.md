@@ -145,10 +145,29 @@ set KRAKEN_RUST_BACKEND_BIN=C:\full\path\to\kraken-unleashed-backend.exe
 Privacy policy: [PRIVACY.md](./PRIVACY.md)
 
 ## Code signing policy
+- every merge to `main` builds the Windows installer, generates `SHA256SUMS.txt`, and updates the rolling `edge` prerelease on GitHub
+- pushing a tag like `v1.0.0` builds the same installer assets and publishes a stable GitHub release for that tag
+- the workflow validates that the pushed stable tag matches `package.json` version before publishing
+- pull requests into `main` are validated by [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
 
 Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
 ### Roles
+## Versioning
+
+Use SemVer for stable releases:
+
+- `v1.0.1` for fixes and packaging-only updates
+- `v1.1.0` for new user-facing features or support for more devices without breaking existing flows
+- `v2.0.0` for breaking changes in packaging, CLI behavior, config layout, or compatibility expectations
+
+Recommended release model:
+
+- `main` is always releasable and publishes the rolling `edge` prerelease automatically
+- stable releases happen only when you intentionally bump `package.json` and create a matching `vX.Y.Z` tag
+- the GitHub release assets are the installer, metadata files, and `SHA256SUMS.txt` so users can download and verify what they install
+
+### Optional VirusTotal scan
 
 - Committer and reviewer: [Cesarsk](https://github.com/Cesarsk)
 - Approver: [Cesarsk](https://github.com/Cesarsk)

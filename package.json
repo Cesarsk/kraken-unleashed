@@ -16,8 +16,8 @@
     "backend:build:release": "cargo build --release --manifest-path backend-rust/Cargo.toml",
     "backend:stage": "powershell -NoProfile -Command \"$env:CARGO_TARGET_DIR='backend-rust/target-runtime'; cargo build --offline --manifest-path backend-rust/Cargo.toml; New-Item -ItemType Directory -Force backend-rust/bin | Out-Null; try { Copy-Item backend-rust/target-runtime/debug/kraken-unleashed-backend.exe backend-rust/bin/kraken-unleashed-backend.exe -Force -ErrorAction Stop } catch { Write-Host 'backend-rust/bin is locked; Electron can use backend-rust/target-runtime/debug directly.' }\"",
     "dist:prepare": "node scripts/prepare-dist-resources.js",
-    "dist:win": "npm run dist:prepare && electron-builder --win nsis portable --x64 --publish never",
-    "release:win": "npm run dist:prepare && electron-builder --win nsis portable --x64 --publish always"
+    "dist:win": "npm run dist:prepare && electron-builder --win nsis --x64 --publish never",
+    "release:win": "npm run dist:prepare && electron-builder --win nsis --x64 --publish always"
   },
   "devDependencies": {
     "electron": "^31.7.7",
@@ -50,12 +50,6 @@
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
           "arch": [
             "x64"
           ]

@@ -2,15 +2,21 @@ name: Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   build-windows:
     runs-on: windows-latest
-    permissions:
-      contents: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       VT_API_KEY: ${{ secrets.VT_API_KEY }}
@@ -42,12 +48,25 @@ jobs:
           }
 
       - name: Build Windows artifacts
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         run: npm run dist:win
 
-      - name: Build and publish GitHub release
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-        run: npm run release:win
+      - name: Generate checksums
+        shell: pwsh
+        run: |
+          $artifacts = Get-ChildItem dist -File | Where-Object {
+            $_.Name -ne 'builder-debug.yml' -and $_.Extension -in '.exe', '.blockmap', '.yml'
+          } | Sort-Object Name
+
+          if (-not $artifacts) {
+            throw "No packaged artifacts found in dist/."
+          }
+
+          $lines = foreach ($artifact in $artifacts) {
+            $hash = (Get-FileHash $artifact.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash *$($artifact.Name)"
+          }
+
+          Set-Content -Path dist\SHA256SUMS.txt -Value $lines
 
       - name: Upload packaged artifacts
         uses: actions/upload-artifact@v4
@@ -57,7 +76,85 @@ jobs:
             dist/*.exe
             dist/*.blockmap
             dist/*.yml
+            dist/SHA256SUMS.txt
+            !dist/builder-debug.yml
           if-no-files-found: error
+
+      - name: Publish stable release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $title = "Kraken Unleashed $tag"
+          $notes = @"
+          Stable release for $tag.
+
+          Commit: ${{ github.sha }}
+          "@
+
+          gh release view $tag --repo Cesarsk/kraken-unleashed *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag `
+              --repo Cesarsk/kraken-unleashed `
+              --title $title `
+              --notes $notes `
+              --latest
+          } else {
+            gh release edit $tag `
+              --repo Cesarsk/kraken-unleashed `
+              --title $title `
+              --notes $notes `
+              --latest
+          }
+
+          $releaseFiles = Get-ChildItem dist -File | Where-Object {
+            $_.Name -ne 'builder-debug.yml' -and ($_.Extension -in '.exe', '.blockmap', '.yml' -or $_.Name -eq 'SHA256SUMS.txt')
+          } | Sort-Object Name | Select-Object -ExpandProperty FullName
+
+          gh release upload $tag $releaseFiles `
+            --repo Cesarsk/kraken-unleashed `
+            --clobber
+
+      - name: Publish rolling edge release
+        if: ${{ github.ref == 'refs/heads/main' }}
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f edge "${{ github.sha }}"
+          git push origin refs/tags/edge --force
+
+          $shortSha = "${{ github.sha }}".Substring(0, 7)
+          $notes = @"
+          Automated prerelease from `main`.
+
+          Commit: ${{ github.sha }}
+          "@
+
+          gh release view edge --repo Cesarsk/kraken-unleashed *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create edge `
+              --repo Cesarsk/kraken-unleashed `
+              --title "Edge" `
+              --notes $notes `
+              --prerelease
+          } else {
+            gh release edit edge `
+              --repo Cesarsk/kraken-unleashed `
+              --title "Edge" `
+              --notes $notes `
+              --prerelease
+          }
+
+          $releaseFiles = Get-ChildItem dist -File | Where-Object {
+            $_.Name -ne 'builder-debug.yml' -and ($_.Extension -in '.exe', '.blockmap', '.yml' -or $_.Name -eq 'SHA256SUMS.txt')
+          } | Sort-Object Name | Select-Object -ExpandProperty FullName
+
+          gh release upload edge $releaseFiles `
+            --repo Cesarsk/kraken-unleashed `
+            --clobber
+
+          "Published edge release from $shortSha." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Submit installer to VirusTotal
         if: ${{ env.VT_API_KEY != '' && hashFiles('dist/*setup*.exe') != '' }}
