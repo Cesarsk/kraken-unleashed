@@ -20,6 +20,10 @@
   <a href="#build-from-source">Build From Source</a>
 </p>
 
+<p align="center">
+  <img src="./assets/intro.gif" alt="Kraken Unleashed app demo" width="100%" />
+</p>
+
 Kraken Unleashed is a desktop app for writing animated GIFs straight to supported Kraken LCD coolers. It focuses on the part that matters: detect the screen, line up the asset properly, deploy it cleanly, and recover fast if the display gets stuck.
 
 This project is independent and is not affiliated with or endorsed by NZXT.
