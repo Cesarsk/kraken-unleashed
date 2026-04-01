@@ -131,8 +131,8 @@ set KRAKEN_RUST_BACKEND_BIN=C:\full\path\to\kraken-unleashed-backend.exe
 
 GitHub Actions packaging is defined in [`.github/workflows/release.yml`](./.github/workflows/release.yml).
 
-- every merge to `main` builds the Windows installer and portable executable, generates `SHA256SUMS.txt`, and updates the rolling `edge` prerelease on GitHub
-- pushing a tag like `v1.0.0` builds the same assets and publishes a stable GitHub release for that tag
+- every merge to `main` builds the Windows installer, generates `SHA256SUMS.txt`, and updates the rolling `edge` prerelease on GitHub
+- pushing a tag like `v1.0.0` builds the same installer assets and publishes a stable GitHub release for that tag
 - the workflow validates that the pushed stable tag matches `package.json` version before publishing
 - pull requests into `main` are validated by [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
 
@@ -150,7 +150,7 @@ Recommended release model:
 
 - `main` is always releasable and publishes the rolling `edge` prerelease automatically
 - stable releases happen only when you intentionally bump `package.json` and create a matching `vX.Y.Z` tag
-- the GitHub release assets are the installer, portable executable, metadata files, and `SHA256SUMS.txt` so users can download and verify what they install
+- the GitHub release assets are the installer, metadata files, and `SHA256SUMS.txt` so users can download and verify what they install
 
 ### Optional VirusTotal scan
 
