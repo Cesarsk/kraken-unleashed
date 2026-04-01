@@ -6,6 +6,7 @@ const state = {
   lcdPoweredOff: false,
   lastBrightness: 100,
   gallery: [],
+  galleryPage: 1,
   transform: {
     zoom: 1,
     panX: 0,
@@ -17,11 +18,20 @@ const state = {
   galleryPoller: null,
   brightnessTimer: null,
   searchResults: [],
+  searchQuery: '',
+  searchNextCursor: null,
+  searchCursorHistory: [],
+  searchPage: 1,
   searchBusy: false,
+  searchSessionOpen: false,
   detectionBusy: false,
   detectionPoller: null,
   lastDetectionLabel: 'Waiting for first scan.',
-  deployBusy: false
+  deployBusy: false,
+  deployProgressValue: 0,
+  appMeta: null,
+  settings: null,
+  searchPreviewItem: null
 };
 
 const compatibilityCatalog = [
@@ -51,10 +61,20 @@ const els = {
   browseButton: document.getElementById('browse-button'),
   searchInput: document.getElementById('search-input'),
   searchButton: document.getElementById('search-button'),
-  freeBrowserButton: document.getElementById('free-browser-button'),
+  searchSession: document.getElementById('search-session'),
+  searchSessionTitle: document.getElementById('search-session-title'),
+  searchCloseButton: document.getElementById('search-close-button'),
   searchStatus: document.getElementById('search-status'),
+  searchPagination: document.getElementById('search-pagination'),
+  searchPrevButton: document.getElementById('search-prev-button'),
+  searchPageLabel: document.getElementById('search-page-label'),
+  searchNextButton: document.getElementById('search-next-button'),
   searchResults: document.getElementById('search-results'),
-  compatibilityButton: document.getElementById('compatibility-button'),
+  searchPreviewModal: document.getElementById('search-preview-modal'),
+  closeSearchPreviewButton: document.getElementById('close-search-preview-button'),
+  searchPreviewTitle: document.getElementById('search-preview-title'),
+  searchPreviewMeta: document.getElementById('search-preview-meta'),
+  searchPreviewImage: document.getElementById('search-preview-image'),
   recoverButton: document.getElementById('recover-button'),
   editButton: document.getElementById('edit-button'),
   writeButton: document.getElementById('write-button'),
@@ -62,6 +82,15 @@ const els = {
   rotationLabel: document.getElementById('rotation-label'),
   selectedName: document.getElementById('selected-name'),
   galleryStrip: document.getElementById('gallery-strip'),
+  galleryPagination: document.getElementById('gallery-pagination'),
+  galleryDeleteButton: document.getElementById('gallery-delete-button'),
+  galleryPrevButton: document.getElementById('gallery-prev-button'),
+  galleryPageLabel: document.getElementById('gallery-page-label'),
+  galleryNextButton: document.getElementById('gallery-next-button'),
+  galleryModal: document.getElementById('gallery-modal'),
+  closeGalleryButton: document.getElementById('close-gallery-button'),
+  galleryModalMeta: document.getElementById('gallery-modal-meta'),
+  galleryModalGrid: document.getElementById('gallery-modal-grid'),
   previewImage: document.getElementById('preview-image'),
   previewPlaceholder: document.getElementById('preview-placeholder'),
   editorModal: document.getElementById('editor-modal'),
@@ -81,7 +110,19 @@ const els = {
   compatibilityGrid: document.getElementById('compatibility-grid'),
   editorCanvas: document.getElementById('editor-canvas'),
   editorImage: document.getElementById('editor-image'),
-  editorZoomLabel: document.getElementById('editor-zoom-label')
+  zoomOutButton: document.getElementById('zoom-out-button'),
+  zoomInButton: document.getElementById('zoom-in-button'),
+  editorZoomLabel: document.getElementById('editor-zoom-label'),
+  appVersion: document.getElementById('app-version')
+  ,
+  settingsButton: document.getElementById('settings-button'),
+  settingsModal: document.getElementById('settings-modal'),
+  closeSettingsButton: document.getElementById('close-settings-button'),
+  closeSettingsFooterButton: document.getElementById('close-settings-footer-button'),
+  settingLaunchAtLogin: document.getElementById('setting-launch-at-login'),
+  settingMinimizeToTray: document.getElementById('setting-minimize-to-tray'),
+  settingStartHidden: document.getElementById('setting-start-hidden'),
+  settingRestoreLastGif: document.getElementById('setting-restore-last-gif')
 };
 
 function toFileUrl(filePath) {
@@ -96,6 +137,24 @@ function applyTransform(element, transform, scaleBase = 1) {
 
 function updateZoomLabel(value) {
   els.editorZoomLabel.textContent = `${Math.round(value * 100)}%`;
+}
+
+function setDraftZoom(nextZoom) {
+  if (!state.draftTransform) {
+    return;
+  }
+
+  state.draftTransform.zoom = Math.min(3, Math.max(1, Number(nextZoom.toFixed(2))));
+  updateZoomLabel(state.draftTransform.zoom);
+  syncEditorTransform();
+}
+
+function nudgeDraftZoom(delta) {
+  if (!state.draftTransform) {
+    return;
+  }
+
+  setDraftZoom(state.draftTransform.zoom + delta);
 }
 
 function syncPreviewTransform() {
@@ -124,24 +183,182 @@ function setSearchStatus(message) {
   els.searchStatus.textContent = message;
 }
 
+function syncSearchSessionUI() {
+  const open = state.searchSessionOpen;
+  els.searchSession.classList.toggle('hidden', !open);
+  els.searchSession.setAttribute('aria-hidden', open ? 'false' : 'true');
+  if (!open) {
+    return;
+  }
+
+  if (state.searchBusy) {
+    els.searchSessionTitle.textContent = 'Searching...';
+    return;
+  }
+
+  if (state.searchQuery) {
+    els.searchSessionTitle.textContent = `Results for "${state.searchQuery}"`;
+  } else {
+    els.searchSessionTitle.textContent = 'Results';
+  }
+}
+
+function setSearchSessionOpen(open) {
+  state.searchSessionOpen = Boolean(open);
+  syncSearchSessionUI();
+}
+
+function updateSearchPagination() {
+  const hasResults = state.searchResults.length > 0;
+  const shouldShow = hasResults || state.searchPage > 1 || Boolean(state.searchNextCursor);
+  els.searchPagination.classList.toggle('hidden', !shouldShow);
+  els.searchPagination.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+  els.searchPageLabel.textContent = `Page ${state.searchPage}`;
+  els.searchPrevButton.disabled = state.searchBusy || state.searchPage <= 1;
+  els.searchNextButton.disabled = state.searchBusy || !state.searchNextCursor;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (!Number.isFinite(value) || value <= 0) {
+    return 'Unknown size';
+  }
+  if (value >= 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 1 : 2)} MB`;
+  }
+  if (value >= 1024) {
+    return `${Math.round(value / 1024)} KB`;
+  }
+  return `${value} B`;
+}
+
+function searchResultMetaLabel(item) {
+  const resolution = item.dimensions ? `${item.dimensions[0]} x ${item.dimensions[1]}` : 'GIF';
+  const sizeLabel = formatBytes(item.sizeBytes);
+  return `${resolution} | ${sizeLabel}`;
+}
+
+function searchCompressionLabel(item) {
+  const limit = state.appMeta?.deviceMaxGifBytes || 20 * 1024 * 1024;
+  if ((item.sizeBytes || 0) <= limit) {
+    return null;
+  }
+  return `Over 20 MB, will be compressed on deploy`;
+}
+
+function openSearchPreview(item) {
+  state.searchPreviewItem = item;
+  els.searchPreviewTitle.textContent = item.title;
+  const compressionLabel = searchCompressionLabel(item);
+  els.searchPreviewMeta.textContent = compressionLabel
+    ? `${searchResultMetaLabel(item)} | ${compressionLabel}`
+    : searchResultMetaLabel(item);
+  els.searchPreviewImage.src = item.downloadUrl || item.previewUrl;
+  els.searchPreviewImage.alt = item.title;
+  els.searchPreviewModal.classList.remove('hidden');
+  els.searchPreviewModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeSearchPreview() {
+  state.searchPreviewItem = null;
+  els.searchPreviewModal.classList.add('hidden');
+  els.searchPreviewModal.setAttribute('aria-hidden', 'true');
+  els.searchPreviewImage.removeAttribute('src');
+}
+
+function syncSettingsUI() {
+  if (!state.settings) {
+    return;
+  }
+
+  els.settingLaunchAtLogin.checked = Boolean(state.settings.launchAtLogin);
+  els.settingMinimizeToTray.checked = Boolean(state.settings.minimizeToTray);
+  els.settingStartHidden.checked = Boolean(state.settings.startHiddenOnLaunch);
+  els.settingRestoreLastGif.checked = Boolean(state.settings.restoreLastGifOnStartup);
+  const startupDependentDisabled = !state.settings.launchAtLogin;
+  els.settingStartHidden.disabled = startupDependentDisabled;
+  els.settingRestoreLastGif.disabled = startupDependentDisabled;
+}
+
+function openSettings() {
+  syncSettingsUI();
+  els.settingsModal.classList.remove('hidden');
+  els.settingsModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeSettings() {
+  els.settingsModal.classList.add('hidden');
+  els.settingsModal.setAttribute('aria-hidden', 'true');
+}
+
+async function updateSetting(patch, successMessage) {
+  state.settings = await window.krakenApp.updateSettings(patch);
+  syncSettingsUI();
+  if (successMessage) {
+    setStatus(successMessage);
+    showToast(successMessage);
+  }
+}
+
+function getGalleryPageSize() {
+  return state.appMeta?.galleryPageSize || 6;
+}
+
+function delay(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function syncGalleryPageToSelection() {
+  if (!state.assetPath) {
+    return;
+  }
+  const selectedIndex = state.gallery.findIndex((item) => item.path === state.assetPath);
+  if (selectedIndex === -1) {
+    return;
+  }
+  state.galleryPage = Math.floor(selectedIndex / getGalleryPageSize()) + 1;
+}
+
+function updateGalleryPagination(totalItems = state.gallery.length) {
+  const pageSize = getGalleryPageSize();
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  state.galleryPage = Math.min(totalPages, Math.max(1, state.galleryPage));
+  els.galleryPageLabel.textContent = `Page ${state.galleryPage} / ${totalPages}`;
+  els.galleryPrevButton.disabled = state.galleryPage <= 1;
+  els.galleryNextButton.disabled = state.galleryPage >= totalPages;
+}
+
+function selectedGalleryItem() {
+  return state.gallery.find((item) => item.path === state.assetPath) || null;
+}
+
+function updateGalleryActions() {
+  els.galleryDeleteButton.disabled = !selectedGalleryItem() || state.deployBusy;
+}
+
 function setStatus(message) {
   els.statusLine.textContent = message;
 }
 
 function setDeployProgress(value, message, variant = 'active') {
   const clamped = Math.max(0, Math.min(100, Math.round(value)));
+  const nextValue = variant === 'active'
+    ? Math.max(state.deployProgressValue, clamped)
+    : Math.max(state.deployProgressValue, clamped);
+  state.deployProgressValue = nextValue;
   const track = els.deployProgress.querySelector('.deploy-progress-track');
   els.deployProgress.classList.remove('hidden', 'is-complete', 'is-error');
   els.deployProgress.classList.toggle('is-complete', variant === 'complete');
   els.deployProgress.classList.toggle('is-error', variant === 'error');
   els.deployProgress.setAttribute('aria-hidden', 'false');
   els.deployProgressLabel.textContent = message;
-  els.deployProgressValue.textContent = `${clamped}%`;
-  els.deployProgressFill.style.width = `${clamped}%`;
-  track?.setAttribute('aria-valuenow', String(clamped));
+  els.deployProgressValue.textContent = `${nextValue}%`;
+  els.deployProgressFill.style.width = `${nextValue}%`;
+  track?.setAttribute('aria-valuenow', String(nextValue));
 }
 
 function resetDeployProgress() {
+  state.deployProgressValue = 0;
   const track = els.deployProgress.querySelector('.deploy-progress-track');
   els.deployProgress.classList.add('hidden');
   els.deployProgress.classList.remove('is-complete', 'is-error');
@@ -165,6 +382,7 @@ function setDeviceControlState(connected) {
   els.rotateButton.disabled = !connected || !state.assetPath || state.deployBusy;
   els.editButton.disabled = !connected || !state.assetPath || state.deployBusy;
   els.writeButton.disabled = !connected || !state.assetPath || state.deployBusy;
+  updateGalleryActions();
 }
 
 async function setBrightness(value) {
@@ -290,6 +508,7 @@ async function setSelectedAsset(assetPath, assetName) {
   const isSameAsset = state.assetPath === assetPath;
   state.assetPath = assetPath;
   state.assetName = assetName;
+  syncGalleryPageToSelection();
   if (!isSameAsset) {
     await loadPresetForAsset(assetPath);
   }
@@ -307,32 +526,88 @@ async function setSelectedAsset(assetPath, assetName) {
   els.previewPlaceholder.style.display = 'none';
   syncPreviewTransform();
   setDeviceControlState(Boolean(state.deviceInfo));
+  updateGalleryActions();
 }
 
 function renderGallery() {
   els.galleryStrip.innerHTML = '';
+  updateGalleryPagination();
 
-  for (const item of state.gallery) {
+  const pageSize = getGalleryPageSize();
+  const startIndex = (state.galleryPage - 1) * pageSize;
+  const visibleItems = state.gallery.slice(startIndex, startIndex + pageSize);
+
+  for (const item of visibleItems) {
     const wrapper = document.createElement('div');
     wrapper.className = `gallery-item ${item.path === state.assetPath ? 'active' : ''}`;
 
     const button = document.createElement('button');
+    button.type = 'button';
     const img = document.createElement('img');
     img.src = `${toFileUrl(item.path)}?t=${item.modified}`;
-    img.alt = item.name;
+    img.alt = item.displayName || item.name;
     button.appendChild(img);
     button.addEventListener('click', async () => {
-      await setSelectedAsset(item.path, item.name);
+      await setSelectedAsset(item.path, item.displayName || item.name);
       renderGallery();
     });
 
     const label = document.createElement('span');
-    label.textContent = item.name.length > 14 ? `${item.name.slice(0, 12)}...` : item.name;
+    const displayName = item.displayName || item.name;
+    label.textContent = displayName.length > 14 ? `${displayName.slice(0, 12)}...` : displayName;
 
     wrapper.appendChild(button);
     wrapper.appendChild(label);
     els.galleryStrip.appendChild(wrapper);
   }
+
+  updateGalleryActions();
+}
+
+function renderGalleryModal() {
+  els.galleryModalGrid.innerHTML = '';
+  const itemCount = state.gallery.length;
+  els.galleryModalMeta.textContent = itemCount === 1
+    ? '1 GIF in your local app gallery.'
+    : `${itemCount} GIFs in your local app gallery.`;
+
+  for (const item of state.gallery) {
+    const wrapper = document.createElement('div');
+    wrapper.className = `gallery-modal-item ${item.path === state.assetPath ? 'active' : ''}`;
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('aria-label', `Select ${item.displayName || item.name}`);
+    button.addEventListener('click', async () => {
+      await setSelectedAsset(item.path, item.displayName || item.name);
+      renderGallery();
+      renderGalleryModal();
+      closeGalleryModal();
+    });
+
+    const img = document.createElement('img');
+    img.src = `${toFileUrl(item.path)}?t=${item.modified}`;
+    img.alt = item.displayName || item.name;
+    button.appendChild(img);
+
+    const label = document.createElement('span');
+    label.textContent = item.displayName || item.name;
+
+    wrapper.appendChild(button);
+    wrapper.appendChild(label);
+    els.galleryModalGrid.appendChild(wrapper);
+  }
+}
+
+function openGalleryModal() {
+  renderGalleryModal();
+  els.galleryModal.classList.remove('hidden');
+  els.galleryModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeGalleryModal() {
+  els.galleryModal.classList.add('hidden');
+  els.galleryModal.setAttribute('aria-hidden', 'true');
 }
 
 async function restoreLastDeployedAsset() {
@@ -355,7 +630,7 @@ async function loadPresetForAsset(assetPath) {
   if (!assetPath) {
     state.transform = { zoom: 1, panX: 0, panY: 0 };
     state.rotation = 0;
-    els.rotationLabel.textContent = `${state.rotation} deg`;
+    els.rotationLabel.textContent = `Current rotation: ${state.rotation} deg`;
     return;
   }
 
@@ -366,7 +641,7 @@ async function loadPresetForAsset(assetPath) {
     panY: preset?.panY || 0
   };
   state.rotation = preset?.rotation || 0;
-  els.rotationLabel.textContent = `${state.rotation} deg`;
+  els.rotationLabel.textContent = `Current rotation: ${state.rotation} deg`;
 }
 
 async function saveCurrentPreset() {
@@ -385,6 +660,7 @@ async function saveCurrentPreset() {
 async function refreshGallery() {
   const nextGallery = await window.krakenApp.listGallery();
   state.gallery = nextGallery;
+  updateGalleryPagination(nextGallery.length);
 
   if (state.assetPath) {
     const stillExists = await window.krakenApp.assetExists(state.assetPath);
@@ -394,10 +670,14 @@ async function refreshGallery() {
   }
 
   renderGallery();
+  if (!els.galleryModal.classList.contains('hidden')) {
+    renderGalleryModal();
+  }
 }
 
 function renderSearchResults() {
   els.searchResults.innerHTML = '';
+  updateSearchPagination();
 
   if (state.searchResults.length === 0) {
     return;
@@ -406,10 +686,32 @@ function renderSearchResults() {
   for (const item of state.searchResults) {
     const card = document.createElement('div');
     card.className = 'search-result';
+    card.addEventListener('click', (event) => {
+      if (event.target.closest('button.primary-button')) {
+        return;
+      }
+      openSearchPreview(item);
+    });
+
+    const previewButton = document.createElement('button');
+    previewButton.className = 'search-result-preview';
+    previewButton.type = 'button';
+    previewButton.setAttribute('aria-label', `Preview ${item.title}`);
+    previewButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openSearchPreview(item);
+    });
 
     const thumb = document.createElement('img');
     thumb.src = item.previewUrl;
     thumb.alt = item.title;
+
+    const previewHint = document.createElement('span');
+    previewHint.className = 'search-result-preview-hint';
+    previewHint.textContent = 'Preview';
+
+    previewButton.appendChild(thumb);
+    previewButton.appendChild(previewHint);
 
     const meta = document.createElement('div');
     meta.className = 'search-result-meta';
@@ -420,12 +722,20 @@ function renderSearchResults() {
 
     const dims = document.createElement('span');
     dims.className = 'search-result-dims';
-    dims.textContent = item.dimensions ? `${item.dimensions[0]} x ${item.dimensions[1]}` : 'GIF';
+    dims.textContent = searchResultMetaLabel(item);
+
+    const compressionNote = document.createElement('span');
+    compressionNote.className = 'search-result-note';
+    const compressionLabel = searchCompressionLabel(item);
+    if (compressionLabel) {
+      compressionNote.textContent = compressionLabel;
+    }
 
     const action = document.createElement('button');
     action.className = 'primary-button compact-button';
     action.textContent = 'Add';
-    action.addEventListener('click', async () => {
+    action.addEventListener('click', async (event) => {
+      event.stopPropagation();
       action.disabled = true;
       action.textContent = 'Adding...';
       try {
@@ -434,9 +744,9 @@ function renderSearchResults() {
           title: item.title
         });
         await refreshGallery();
-        await setSelectedAsset(downloaded.path, downloaded.name);
+        await setSelectedAsset(downloaded.path, downloaded.displayName || downloaded.name);
         renderGallery();
-        showToast(`Added ${downloaded.name} to the gallery.`);
+        showToast(`Added ${downloaded.displayName || downloaded.name} to the gallery.`);
       } catch (error) {
         showToast(error.message, 'error');
       } finally {
@@ -447,7 +757,10 @@ function renderSearchResults() {
 
     meta.appendChild(title);
     meta.appendChild(dims);
-    card.appendChild(thumb);
+    if (compressionLabel) {
+      meta.appendChild(compressionNote);
+    }
+    card.appendChild(previewButton);
     card.appendChild(meta);
     card.appendChild(action);
     els.searchResults.appendChild(card);
@@ -475,44 +788,81 @@ async function buildPreparedGifPayload() {
   };
 }
 
-async function runSearch() {
+async function runSearch({ cursor = '', direction = 'fresh' } = {}) {
   const query = els.searchInput.value.trim();
   if (!query || state.searchBusy) {
     return;
   }
 
+  state.searchQuery = query;
+  setSearchSessionOpen(true);
   state.searchBusy = true;
+  syncSearchSessionUI();
   els.searchButton.disabled = true;
-  setSearchStatus(`Searching KLIPY for "${query}"...`);
+  els.searchPrevButton.disabled = true;
+  els.searchNextButton.disabled = true;
+  if (direction === 'next') {
+    setSearchStatus(`Loading more KLIPY results for "${query}"...`);
+  } else if (direction === 'prev') {
+    setSearchStatus(`Loading previous KLIPY results for "${query}"...`);
+  } else {
+    setSearchStatus(`Searching KLIPY for "${query}"...`);
+  }
 
   try {
-    state.searchResults = await window.krakenApp.searchGifs(query);
+    const response = await window.krakenApp.searchGifs({ query, cursor });
+    if (direction === 'fresh') {
+      state.searchCursorHistory = [];
+      state.searchPage = 1;
+    } else if (direction === 'next') {
+      state.searchCursorHistory.push(cursor);
+      state.searchPage += 1;
+    } else if (direction === 'prev') {
+      state.searchPage = Math.max(1, state.searchPage - 1);
+    }
+
+    state.searchResults = response.results || [];
+    for (const item of state.searchResults) {
+      item.sizeBytes = item.sizeBytes || 0;
+    }
+    state.searchNextCursor = response.nextCursor || null;
     renderSearchResults();
     setSearchStatus(
       state.searchResults.length > 0
-        ? `Found ${state.searchResults.length} GIFs for "${query}".`
+        ? `Showing ${state.searchResults.length} KLIPY GIFs for "${query}".`
         : `No GIFs found for "${query}".`
     );
   } catch (error) {
     state.searchResults = [];
+    state.searchNextCursor = null;
     renderSearchResults();
     setSearchStatus(error.message);
     showToast(error.message, 'error');
   } finally {
     state.searchBusy = false;
     els.searchButton.disabled = false;
+    updateSearchPagination();
+    syncSearchSessionUI();
   }
 }
 
-async function writeCurrentAsset() {
+async function writeCurrentAsset(options = {}) {
   if (!state.assetPath || !state.deviceInfo || state.deployBusy) {
-    return;
+    return false;
   }
+
+  const {
+    initialStatus,
+    successStatus,
+    suppressSuccessToast = false,
+    suppressErrorToast = false,
+    rethrowOnError = false
+  } = options;
 
   state.deployBusy = true;
   setDeviceControlState(Boolean(state.deviceInfo));
   setDeployProgress(2, `Starting deploy for ${state.assetName}...`);
-  setStatus(`Preparing ${state.assetName} for the LCD...`);
+  setStatus(initialStatus || `Preparing ${state.assetName} for the LCD...`);
 
   try {
     const preparedPayload = await buildPreparedGifPayload();
@@ -526,17 +876,62 @@ async function writeCurrentAsset() {
       lastDeployedAt: new Date().toISOString()
     });
     await new Promise((resolve) => window.setTimeout(resolve, 220));
-    setStatus(result.message || `${state.assetName} deployed successfully.`);
-    showToast(result.message || 'GIF deployed to LCD.');
+    setStatus(successStatus || result.message || `${state.assetName} deployed successfully.`);
+    if (!suppressSuccessToast) {
+      showToast(result.message || 'GIF deployed to LCD.');
+    }
+    return true;
   } catch (error) {
     const previousValue = Number.parseInt(els.deployProgressValue.textContent, 10) || 0;
     setDeployProgress(Math.max(previousValue, 1), error.message || 'Write failed.', 'error');
     setStatus('Write failed.');
-    showToast(error.message, 'error');
+    if (!suppressErrorToast) {
+      showToast(error.message, 'error');
+    }
+    if (rethrowOnError) {
+      throw error;
+    }
+    return false;
   } finally {
     state.deployBusy = false;
     setDeviceControlState(Boolean(state.deviceInfo));
   }
+}
+
+async function restoreLastGifOnStartupIfNeeded() {
+  if (!state.appMeta?.launchedOnStartup || !state.settings?.restoreLastGifOnStartup || !state.assetPath) {
+    return;
+  }
+
+  setStatus('Waiting for Kraken device to restore the last GIF...');
+  const maxAttempts = 12;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    if (!state.deviceInfo) {
+      await detectDevice({ silent: true });
+    }
+
+    if (state.deviceInfo) {
+      try {
+        const restored = await writeCurrentAsset({
+          initialStatus: `Restoring ${state.assetName} after startup...`,
+          successStatus: `${state.assetName} restored after startup.`,
+          suppressSuccessToast: true,
+          suppressErrorToast: true,
+          rethrowOnError: true
+        });
+        if (restored) {
+          return;
+        }
+      } catch {}
+    }
+
+    if (attempt < maxAttempts) {
+      await delay(3000);
+    }
+  }
+
+  setStatus('Startup restore skipped. The Kraken device was not ready.');
 }
 
 window.krakenApp.onDeployProgress((payload) => {
@@ -582,10 +977,8 @@ function onEditorWheel(event) {
     return;
   }
   event.preventDefault();
-  const nextZoom = state.draftTransform.zoom + (event.deltaY < 0 ? 0.08 : -0.08);
-  state.draftTransform.zoom = Math.min(3, Math.max(1, Number(nextZoom.toFixed(2))));
-  updateZoomLabel(state.draftTransform.zoom);
-  syncEditorTransform();
+  const step = event.shiftKey ? 0.01 : 0.03;
+  nudgeDraftZoom(event.deltaY < 0 ? step : -step);
 }
 
 function clampPan(value) {
@@ -636,9 +1029,14 @@ async function boot() {
   renderCompatibility();
   resetDeployProgress();
   setDeviceControlState(false);
+  state.appMeta = await window.krakenApp.getAppMeta();
+  state.settings = await window.krakenApp.getSettings();
+  els.appVersion.textContent = `v${state.appMeta.version}`;
+  syncSettingsUI();
   await detectDevice();
   await refreshGallery();
   await restoreLastDeployedAsset();
+  await restoreLastGifOnStartupIfNeeded();
 
   state.galleryPoller = window.setInterval(() => {
     refreshGallery().catch(() => {});
@@ -655,27 +1053,79 @@ els.uploadButton.addEventListener('click', async () => {
     return;
   }
   await refreshGallery();
-  await setSelectedAsset(picked.path, picked.name);
+  await setSelectedAsset(picked.path, picked.displayName || picked.name);
   renderGallery();
 });
 
-els.browseButton.addEventListener('click', async () => {
-  await window.krakenApp.openGalleryFolder();
+els.browseButton.addEventListener('click', openGalleryModal);
+els.galleryPrevButton.addEventListener('click', () => {
+  if (state.galleryPage <= 1) {
+    return;
+  }
+  state.galleryPage -= 1;
+  renderGallery();
+});
+els.galleryNextButton.addEventListener('click', () => {
+  const totalPages = Math.max(1, Math.ceil(state.gallery.length / getGalleryPageSize()));
+  if (state.galleryPage >= totalPages) {
+    return;
+  }
+  state.galleryPage += 1;
+  renderGallery();
+});
+els.galleryDeleteButton.addEventListener('click', async () => {
+  const selectedItem = selectedGalleryItem();
+  if (!selectedItem || state.deployBusy) {
+    return;
+  }
+  try {
+    await window.krakenApp.deleteAsset(selectedItem.path);
+    if (state.assetPath === selectedItem.path) {
+      await setSelectedAsset(null, null);
+    }
+    await refreshGallery();
+    showToast(`Deleted ${selectedItem.displayName || selectedItem.name}.`);
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
 });
 
 els.searchButton.addEventListener('click', runSearch);
-els.freeBrowserButton.addEventListener('click', async () => {
-  await window.krakenApp.openGifBrowser(els.searchInput.value.trim());
+els.searchCloseButton.addEventListener('click', () => {
+  setSearchSessionOpen(false);
 });
 els.searchInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
     runSearch();
   }
 });
+els.searchPrevButton.addEventListener('click', () => {
+  if (state.searchBusy || state.searchPage <= 1) {
+    return;
+  }
+  const previousCursor = state.searchPage <= 2
+    ? ''
+    : state.searchCursorHistory[state.searchCursorHistory.length - 2] || '';
+  state.searchCursorHistory = state.searchCursorHistory.slice(0, -1);
+  runSearch({ cursor: previousCursor, direction: 'prev' }).catch(() => {});
+});
+els.searchNextButton.addEventListener('click', () => {
+  if (state.searchBusy || !state.searchNextCursor) {
+    return;
+  }
+  runSearch({ cursor: state.searchNextCursor, direction: 'next' }).catch(() => {});
+});
+els.closeSearchPreviewButton.addEventListener('click', closeSearchPreview);
+els.searchPreviewModal.addEventListener('click', (event) => {
+  if (event.target === els.searchPreviewModal) {
+    closeSearchPreview();
+  }
+});
+els.closeGalleryButton.addEventListener('click', closeGalleryModal);
 
 els.writeButton.addEventListener('click', writeCurrentAsset);
 els.editButton.addEventListener('click', openEditor);
-els.compatibilityButton.addEventListener('click', openCompatibility);
+els.deviceTag.addEventListener('click', openCompatibility);
 els.detectDeviceButton.addEventListener('click', () => {
   detectDevice().catch(() => {});
 });
@@ -683,8 +1133,8 @@ els.detectDeviceButton.addEventListener('click', () => {
 els.recoverButton.addEventListener('click', async () => {
   try {
     const result = await window.krakenApp.recoverLiquid();
-    setStatus(result.message || 'Liquid screen restored.');
-    showToast(result.message || 'Liquid screen restored.');
+    setStatus(result.message || 'Display restored.');
+    showToast(result.message || 'Display restored.');
   } catch (error) {
     showToast(error.message, 'error');
   }
@@ -692,11 +1142,59 @@ els.recoverButton.addEventListener('click', async () => {
 
 els.rotateButton.addEventListener('click', async () => {
   state.rotation = (state.rotation + 90) % 360;
-  els.rotationLabel.textContent = `${state.rotation} deg`;
+  els.rotationLabel.textContent = `Current rotation: ${state.rotation} deg`;
   syncPreviewTransform();
   syncEditorTransform();
   await saveCurrentPreset();
-  setStatus(`Rotation set to ${state.rotation} deg. Click Deploy to write the updated image to the LCD.`);
+  setStatus('Rotation updated. Click Deploy to write the updated image to the LCD.');
+});
+
+els.settingsButton.addEventListener('click', openSettings);
+els.closeSettingsButton.addEventListener('click', closeSettings);
+els.closeSettingsFooterButton.addEventListener('click', closeSettings);
+els.settingLaunchAtLogin.addEventListener('change', async (event) => {
+  try {
+    await updateSetting(
+      { launchAtLogin: event.target.checked },
+      event.target.checked ? 'Launch on startup enabled.' : 'Launch on startup disabled.'
+    );
+  } catch (error) {
+    event.target.checked = !event.target.checked;
+    showToast(error.message, 'error');
+  }
+});
+els.settingMinimizeToTray.addEventListener('change', async (event) => {
+  try {
+    await updateSetting(
+      { minimizeToTray: event.target.checked },
+      event.target.checked ? 'Close-to-tray enabled.' : 'Close-to-tray disabled.'
+    );
+  } catch (error) {
+    event.target.checked = !event.target.checked;
+    showToast(error.message, 'error');
+  }
+});
+els.settingStartHidden.addEventListener('change', async (event) => {
+  try {
+    await updateSetting(
+      { startHiddenOnLaunch: event.target.checked },
+      event.target.checked ? 'Startup tray launch enabled.' : 'Startup tray launch disabled.'
+    );
+  } catch (error) {
+    event.target.checked = !event.target.checked;
+    showToast(error.message, 'error');
+  }
+});
+els.settingRestoreLastGif.addEventListener('change', async (event) => {
+  try {
+    await updateSetting(
+      { restoreLastGifOnStartup: event.target.checked },
+      event.target.checked ? 'Startup GIF restore enabled.' : 'Startup GIF restore disabled.'
+    );
+  } catch (error) {
+    event.target.checked = !event.target.checked;
+    showToast(error.message, 'error');
+  }
 });
 
 els.brightnessSlider.addEventListener('input', async (event) => {
@@ -731,6 +1229,12 @@ els.saveEditorButton.addEventListener('click', () => {
   closeEditor();
 });
 els.resetEditorButton.addEventListener('click', resetDraftTransform);
+els.zoomOutButton.addEventListener('click', () => {
+  nudgeDraftZoom(-0.03);
+});
+els.zoomInButton.addEventListener('click', () => {
+  nudgeDraftZoom(0.03);
+});
 els.closeCompatibilityButton.addEventListener('click', closeCompatibility);
 els.editorCanvas.addEventListener('wheel', onEditorWheel, { passive: false });
 els.editorCanvas.addEventListener('pointerdown', onEditorPointerDown);
@@ -739,5 +1243,14 @@ window.addEventListener('focus', () => {
 });
 window.addEventListener('pointermove', onEditorPointerMove);
 window.addEventListener('pointerup', onEditorPointerUp);
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    closeEditor();
+    closeCompatibility();
+    closeSettings();
+    closeSearchPreview();
+    closeGalleryModal();
+  }
+});
 
 boot();

@@ -5,43 +5,58 @@
 <h1 align="center">Kraken Unleashed</h1>
 
 <p align="center">
-  Direct GIF deployment for supported LCD coolers from a native desktop app.
+  Push GIFs directly to supported Kraken LCD coolers from a fast native desktop app.
 </p>
 
 <p align="center">
-  Windows-native device control | Placement editor | Rust-powered deploy pipeline
+  Windows-native device control | Placement editor | Signed Windows releases
 </p>
 
-Kraken Unleashed is a desktop app for pushing animated GIFs directly to supported Kraken LCD coolers. The workflow is intentionally simple: detect the device, line up the asset, and deploy it to the screen without bouncing through a bloated setup.
+<p align="center">
+  <a href="https://github.com/Cesarsk/kraken-unleashed/releases">Download for Windows</a>
+  |
+  <a href="#supported-devices">Supported Devices</a>
+  |
+  <a href="#build-from-source">Build From Source</a>
+</p>
+
+<p align="center">
+  <img src="./assets/intro.gif" alt="Kraken Unleashed app demo" width="100%" />
+</p>
+
+Kraken Unleashed is a desktop app for writing animated GIFs straight to supported Kraken LCD coolers. It focuses on the part that matters: detect the screen, line up the asset properly, deploy it cleanly, and recover fast if the display gets stuck.
 
 This project is independent and is not affiliated with or endorsed by NZXT.
 
-## Why It Exists
+## Why People Use It
 
-Most cooler LCD workflows feel heavier than they need to be. Kraken Unleashed focuses on the part that matters:
+- direct GIF deployment over USB
+- native detection of supported LCD devices
+- brightness control, display shutdown, and recovery actions
+- per-GIF zoom, pan, and rotation presets
+- a local gallery workflow that stays simple
 
-- detect the display
-- preview and position the GIF
-- write it cleanly to the device
-- recover fast if the screen gets stuck
+## What You Can Do Today
 
-## Highlights
+- upload a GIF and keep it in a local gallery
+- preview and fine-tune how it sits inside the LCD circle
+- rotate the display output before deployment
+- write the GIF directly to the cooler LCD
+- restore the display if the screen needs a clean reset
 
-- direct GIF deploys over USB
-- native device detection from the desktop app
-- brightness control, LCD shutdown, and restore-liquid recovery actions
-- placement editor with saved zoom, pan, and rotation presets per GIF
-- local gallery workflow for uploaded assets
-- Rust backend helper for device-facing operations
-
-## Current Status
+Current status:
 
 - platform target: Windows
 - media support today: GIF only
 - native backend actions: `info`, `brightness`, `recover`, and `write`
-- validated hardware: `Kraken Elite RGB 2024` / `Kraken Elite V2` (`PID 0x3012`)
 
-The app prepares device-ready GIFs locally, stages them in `.electron-data`, then writes them to the LCD through the Rust helper.
+## Download
+
+If you just want to use the app, grab the latest Windows build from GitHub releases:
+
+- [Latest Releases](https://github.com/Cesarsk/kraken-unleashed/releases)
+
+Release builds package the Electron app together with the Rust backend helper. Official release artifacts are intended to be signed through the repository release pipeline.
 
 ## Supported Devices
 
@@ -54,7 +69,17 @@ Also listed in the compatibility view:
 - `Kraken Elite 2023` (`PID 0x300C`) - supported backend path
 - `Kraken Z3` (`PID 0x3008`) - legacy support path
 
-## Quick Start
+More device support is planned, and community validation is welcome.
+
+## Workflow
+
+1. Launch the app and let it detect the connected LCD.
+2. Upload a GIF and select it from the local gallery.
+3. Open the editor to adjust zoom, pan, and rotation.
+4. Deploy the prepared GIF to the display.
+5. Use `Restore Liquid Screen` if the LCD needs a clean reset.
+
+## Build From Source
 
 ### Requirements
 
@@ -65,7 +90,7 @@ Also listed in the compatibility view:
 
 For release packaging, use Node.js `22.x` so the Electron packaging toolchain matches CI.
 
-### Run the app
+### Run the app locally
 
 From the repo root:
 
@@ -88,17 +113,9 @@ npm run dist:win
 
 This produces Windows release artifacts in `dist/` and bundles the Rust backend into the packaged app under `resources/backend/`.
 
-## Workflow
+## Development Notes
 
-1. Launch the app and let it detect the connected LCD.
-2. Upload a GIF and select it from the local gallery.
-3. Open the editor to adjust zoom, pan, and rotation.
-4. Deploy the prepared GIF to the display.
-5. Use `Restore Liquid Screen` if the LCD needs a clean reset.
-
-## Backend Notes
-
-The Electron app prefers a compiled Rust backend helper. The helper currently exposes these native commands:
+The app prefers a compiled Rust backend helper for device-facing operations. The helper currently exposes these native commands:
 
 - `info` - detect a supported Kraken LCD and report resolution details
 - `brightness` - set LCD brightness from `0` to `100`
@@ -127,20 +144,37 @@ set KRAKEN_RUST_BACKEND_BIN=C:\full\path\to\kraken-unleashed-backend.exe
 - keep competing control software closed while deploying
 - non-GIF modes are not implemented yet, even if they appear in the roadmap
 
-## Release Automation
+## Release Pipeline
 
-GitHub Actions packaging is defined in [`.github/workflows/release.yml`](./.github/workflows/release.yml).
+GitHub Actions automation is defined in [`.github/workflows/release.yml`](./.github/workflows/release.yml) and [`.github/workflows/ci.yml`](./.github/workflows/ci.yml).
 
 - every merge to `main` builds the Windows installer, generates `SHA256SUMS.txt`, uploads the VirusTotal summary, and updates the rolling `main` prerelease on GitHub
 - pushing a tag like `v1.0.0` builds the same installer assets and publishes a stable GitHub release for that tag
-- the workflow validates that the pushed stable tag matches `package.json` version before publishing
-- pull requests into `main` are validated by [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
+- the workflow validates that a stable tag matches the `package.json` version before publishing
+- pull requests into `main` are validated by CI before release flow changes land
 
-The release job uses `electron-builder`, bundles the Rust backend from `dist-resources/backend`, and writes user data to the normal Electron `userData` location instead of the install directory.
+If you add a repository secret named `VT_API_KEY`, the release workflow also uploads the generated Windows installer to VirusTotal and attaches a scan summary to the workflow run.
+
+## Trust And Signing
+
+Free code signing is provided by [SignPath.io](https://about.signpath.io/), with a certificate from [SignPath Foundation](https://signpath.org/).
+
+### Roles
+
+- Committer and reviewer: [Cesarsk](https://github.com/Cesarsk)
+- Approver: [Cesarsk](https://github.com/Cesarsk)
+
+### Scope
+
+Only official release artifacts built from the source code in this repository and published through this project's release process are eligible for signing.
+
+### Privacy
+
+Privacy policy: [PRIVACY.md](./PRIVACY.md)
 
 ## Versioning
 
-Use SemVer for stable releases:
+Stable releases follow SemVer:
 
 - `v1.0.1` for fixes and packaging-only updates
 - `v1.1.0` for new user-facing features or support for more devices without breaking existing flows
