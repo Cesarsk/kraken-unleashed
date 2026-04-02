@@ -88,6 +88,7 @@ const els = {
   galleryPageLabel: document.getElementById('gallery-page-label'),
   galleryNextButton: document.getElementById('gallery-next-button'),
   galleryModal: document.getElementById('gallery-modal'),
+  galleryModalDeleteButton: document.getElementById('gallery-modal-delete-button'),
   closeGalleryButton: document.getElementById('close-gallery-button'),
   galleryModalMeta: document.getElementById('gallery-modal-meta'),
   galleryModalGrid: document.getElementById('gallery-modal-grid'),
@@ -209,13 +210,13 @@ function setSearchSessionOpen(open) {
 }
 
 function updateSearchPagination() {
-  const hasResults = state.searchResults.length > 0;
+  const hasResults = state.searchResults.length > 0 && state.searchSessionOpen;
   const shouldShow = hasResults || state.searchPage > 1 || Boolean(state.searchNextCursor);
   els.searchPagination.classList.toggle('hidden', !shouldShow);
   els.searchPagination.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
   els.searchPageLabel.textContent = `Page ${state.searchPage}`;
-  els.searchPrevButton.disabled = state.searchBusy || state.searchPage <= 1;
-  els.searchNextButton.disabled = state.searchBusy || !state.searchNextCursor;
+  els.searchPrevButton.disabled = state.searchBusy || !state.searchSessionOpen || state.searchPage <= 1;
+  els.searchNextButton.disabled = state.searchBusy || !state.searchSessionOpen || !state.searchNextCursor;
 }
 
 function formatBytes(bytes) {
@@ -333,7 +334,9 @@ function selectedGalleryItem() {
 }
 
 function updateGalleryActions() {
-  els.galleryDeleteButton.disabled = !selectedGalleryItem() || state.deployBusy;
+  const disabled = !selectedGalleryItem() || state.deployBusy;
+  els.galleryDeleteButton.disabled = disabled;
+  els.galleryModalDeleteButton.disabled = disabled;
 }
 
 function setStatus(message) {
@@ -610,6 +613,19 @@ function closeGalleryModal() {
   els.galleryModal.setAttribute('aria-hidden', 'true');
 }
 
+async function deleteSelectedAsset() {
+  const selectedItem = selectedGalleryItem();
+  if (!selectedItem || state.deployBusy) {
+    return;
+  }
+  await window.krakenApp.deleteAsset(selectedItem.path);
+  if (state.assetPath === selectedItem.path) {
+    await setSelectedAsset(null, null);
+  }
+  await refreshGallery();
+  showToast(`Deleted ${selectedItem.displayName || selectedItem.name}.`);
+}
+
 async function restoreLastDeployedAsset() {
   const appState = await window.krakenApp.getAppState();
   const assetPath = appState?.lastDeployedAssetPath;
@@ -746,7 +762,11 @@ function renderSearchResults() {
         await refreshGallery();
         await setSelectedAsset(downloaded.path, downloaded.displayName || downloaded.name);
         renderGallery();
-        showToast(`Added ${downloaded.displayName || downloaded.name} to the gallery.`);
+        showToast(
+          downloaded.alreadyExists
+            ? `${downloaded.displayName || downloaded.name} is already in the gallery.`
+            : `Added ${downloaded.displayName || downloaded.name} to the gallery.`
+        );
       } catch (error) {
         showToast(error.message, 'error');
       } finally {
@@ -801,11 +821,7 @@ async function runSearch({ cursor = '', direction = 'fresh' } = {}) {
   els.searchButton.disabled = true;
   els.searchPrevButton.disabled = true;
   els.searchNextButton.disabled = true;
-  if (direction === 'next') {
-    setSearchStatus(`Loading more KLIPY results for "${query}"...`);
-  } else if (direction === 'prev') {
-    setSearchStatus(`Loading previous KLIPY results for "${query}"...`);
-  } else {
+  if (direction === 'fresh') {
     setSearchStatus(`Searching KLIPY for "${query}"...`);
   }
 
@@ -860,6 +876,7 @@ async function writeCurrentAsset(options = {}) {
   } = options;
 
   state.deployBusy = true;
+  resetDeployProgress();
   setDeviceControlState(Boolean(state.deviceInfo));
   setDeployProgress(2, `Starting deploy for ${state.assetName}...`);
   setStatus(initialStatus || `Preparing ${state.assetName} for the LCD...`);
@@ -1055,6 +1072,11 @@ els.uploadButton.addEventListener('click', async () => {
   await refreshGallery();
   await setSelectedAsset(picked.path, picked.displayName || picked.name);
   renderGallery();
+  showToast(
+    picked.alreadyExists
+      ? `${picked.displayName || picked.name} is already in the gallery.`
+      : `Added ${picked.displayName || picked.name} to the gallery.`
+  );
 });
 
 els.browseButton.addEventListener('click', openGalleryModal);
@@ -1074,17 +1096,15 @@ els.galleryNextButton.addEventListener('click', () => {
   renderGallery();
 });
 els.galleryDeleteButton.addEventListener('click', async () => {
-  const selectedItem = selectedGalleryItem();
-  if (!selectedItem || state.deployBusy) {
-    return;
-  }
   try {
-    await window.krakenApp.deleteAsset(selectedItem.path);
-    if (state.assetPath === selectedItem.path) {
-      await setSelectedAsset(null, null);
-    }
-    await refreshGallery();
-    showToast(`Deleted ${selectedItem.displayName || selectedItem.name}.`);
+    await deleteSelectedAsset();
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+});
+els.galleryModalDeleteButton.addEventListener('click', async () => {
+  try {
+    await deleteSelectedAsset();
   } catch (error) {
     showToast(error.message, 'error');
   }
@@ -1093,6 +1113,7 @@ els.galleryDeleteButton.addEventListener('click', async () => {
 els.searchButton.addEventListener('click', runSearch);
 els.searchCloseButton.addEventListener('click', () => {
   setSearchSessionOpen(false);
+  updateSearchPagination();
 });
 els.searchInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {

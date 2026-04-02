@@ -1,15 +1,15 @@
 <p align="center">
-  <img src="./assets/readme-banner.svg" alt="Kraken Unleashed banner" width="100%" />
+  <img src="./assets/banner.png" alt="Kraken Unleashed banner" width="100%" />
 </p>
 
 <h1 align="center">Kraken Unleashed</h1>
 
 <p align="center">
-  Push GIFs directly to supported Kraken LCD coolers from a fast native desktop app.
+  The clean way to put custom GIFs on supported Kraken LCD coolers.
 </p>
 
 <p align="center">
-  Windows-native device control | Placement editor | Signed Windows releases
+  Fast deploy | Search GIF online | Fully Open Source
 </p>
 
 <p align="center">
@@ -24,39 +24,30 @@
   <img src="./assets/intro.gif" alt="Kraken Unleashed app demo" width="100%" />
 </p>
 
-Kraken Unleashed is a desktop app for writing animated GIFs straight to supported Kraken LCD coolers. It focuses on the part that matters: detect the screen, line up the asset properly, deploy it cleanly, and recover fast if the display gets stuck.
+Kraken Unleashed is a desktop app built for getting great-looking GIFs onto supported Kraken LCD coolers. Detect the screen, position the asset properly, deploy it and you are done
 
 This project is independent and is not affiliated with or endorsed by NZXT.
 
-## Why People Use It
+## Why It Feels Better
 
-- direct GIF deployment over USB
-- native detection of supported LCD devices
-- brightness control, display shutdown, and recovery actions
-- per-GIF zoom, pan, and rotation presets
-- a local gallery workflow that stays simple
-
-## What You Can Do Today
-
-- upload a GIF and keep it in a local gallery
-- preview and fine-tune how it sits inside the LCD circle
-- rotate the display output before deployment
-- write the GIF directly to the cooler LCD
-- restore the display if the screen needs a clean reset
+- deploy GIFs is very easy and does not require official app.
+- download GIFs via the App
+- fully free
+- save per-GIF zoom, pan, and rotation presets
+- control brightness and recover the display from the same app
+- keep a simple local gallery
 
 Current status:
 
 - platform target: Windows
-- media support today: GIF only
+- media support today: GIF only (more to come)
 - native backend actions: `info`, `brightness`, `recover`, and `write`
 
 ## Download
 
-If you just want to use the app, grab the latest Windows build from GitHub releases:
+If you just want to use the app, start with the latest Windows release:
 
 - [Latest Releases](https://github.com/Cesarsk/kraken-unleashed/releases)
-
-Release builds package the Electron app together with the Rust backend helper. Official release artifacts are intended to be signed through the repository release pipeline.
 
 ## Supported Devices
 
@@ -66,18 +57,10 @@ Validated in this app:
 
 Also listed in the compatibility view:
 
-- `Kraken Elite 2023` (`PID 0x300C`) - supported backend path
-- `Kraken Z3` (`PID 0x3008`) - legacy support path
+- `Kraken Elite 2023` (`PID 0x300C`)
+- `Kraken Z3` (`PID 0x3008`)
 
-More device support is planned, and community validation is welcome.
-
-## Workflow
-
-1. Launch the app and let it detect the connected LCD.
-2. Upload a GIF and select it from the local gallery.
-3. Open the editor to adjust zoom, pan, and rotation.
-4. Deploy the prepared GIF to the display.
-5. Use `Restore Liquid Screen` if the LCD needs a clean reset.
+More device support is planned (not necessarly Kraken coolers), and community validation is welcome.
 
 ## Build From Source
 
@@ -102,62 +85,15 @@ npm start
 
 `npm run backend:stage` builds the Rust helper and stages it where Electron will find it first.
 
-### Build a packaged Windows app
-
-From the repo root:
-
-```bash
-npm install
-npm run dist:win
-```
-
-This produces Windows release artifacts in `dist/` and bundles the Rust backend into the packaged app under `resources/backend/`.
-
-## Development Notes
-
-The app prefers a compiled Rust backend helper for device-facing operations. The helper currently exposes these native commands:
-
-- `info` - detect a supported Kraken LCD and report resolution details
-- `brightness` - set LCD brightness from `0` to `100`
-- `recover` - switch the screen back to the liquid display mode
-- `write` - prepare and transfer a GIF directly to the device
-
-Useful commands while developing:
-
-```bash
-cargo build --manifest-path backend-rust/Cargo.toml
-cargo build --release --manifest-path backend-rust/Cargo.toml
-npm run backend:stage
-npm run dist:win
-```
-
-You can also point Electron at a custom helper binary with:
-
-```bash
-set KRAKEN_RUST_BACKEND_BIN=C:\full\path\to\kraken-unleashed-backend.exe
-```
-
 ## Safety Notes
 
-- this app writes directly to the LCD device over USB
-- use it at your own risk
+- this app writes directly to the LCD device
+- use it at your own risk, I am not responsible for any damage caused.
 - keep competing control software closed while deploying
-- non-GIF modes are not implemented yet, even if they appear in the roadmap
-
-## Release Pipeline
-
-GitHub Actions automation is defined in [`.github/workflows/release.yml`](./.github/workflows/release.yml) and [`.github/workflows/ci.yml`](./.github/workflows/ci.yml).
-
-- every merge to `main` builds the Windows installer, generates `SHA256SUMS.txt`, uploads the VirusTotal summary, and updates the rolling `main` prerelease on GitHub
-- pushing a tag like `v1.0.0` builds the same installer assets and publishes a stable GitHub release for that tag
-- the workflow validates that a stable tag matches the `package.json` version before publishing
-- pull requests into `main` are validated by CI before release flow changes land
-
-If you add a repository secret named `VT_API_KEY`, the release workflow also uploads the generated Windows installer to VirusTotal and attaches a scan summary to the workflow run.
 
 ## Trust And Signing
 
-Free code signing is provided by [SignPath.io](https://about.signpath.io/), with a certificate from [SignPath Foundation](https://signpath.org/).
+Free code signing has been requested to [SignPath.io](https://about.signpath.io/), with a certificate from [SignPath Foundation](https://signpath.org/). It is pending as of now.
 
 ### Roles
 
@@ -172,36 +108,12 @@ Only official release artifacts built from the source code in this repository an
 
 Privacy policy: [PRIVACY.md](./PRIVACY.md)
 
-## Versioning
-
-Stable releases follow SemVer:
-
-- `v1.0.1` for fixes and packaging-only updates
-- `v1.1.0` for new user-facing features or support for more devices without breaking existing flows
-- `v2.0.0` for breaking changes in packaging, CLI behavior, config layout, or compatibility expectations
-
-Recommended release model:
-
-- `main` is always releasable and publishes the rolling `main` prerelease automatically
-- stable releases happen only when you intentionally bump `package.json` and create a matching `vX.Y.Z` tag
-- the GitHub release assets are the installer, metadata files, `SHA256SUMS.txt`, and VirusTotal files so users can download and verify what they install
-
-### Optional VirusTotal scan
-
-The release workflow uploads the generated Windows installer to VirusTotal after packaging and publishes both a human-readable summary and the raw report alongside the release assets.
-
-Notes:
-
-- `VT_API_KEY` is required for published releases
-- the workflow scans the installer artifact to keep the public API request count low
-- if you need `libusb-1.0.dll` bundled explicitly, provide it before packaging or set `KRAKEN_LIBUSB_DLL` during the build
-
 ## Roadmap
 
 - SignalRGB integration
 - CLI support for scripted usage and automation
 - loop controls to help organize and fine-tune perfect seamless GIF loops
-- more modes beyond GIF-only, including slideshow, web integration, clock, text, and music mode
+- more modes beyond GIF-only, including slideshow, web integration, clock, text, , temperatures and music mode
 - broader cooler model support, with community contributions welcome for adding and validating more devices
 
 ## Contributing

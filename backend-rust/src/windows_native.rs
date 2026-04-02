@@ -64,7 +64,7 @@ use windows::Win32::System::Threading::CreateEventW;
 #[cfg(windows)]
 const NZXT_VID: u16 = 0x1E71;
 #[cfg(windows)]
-const DEFAULT_TIMEOUT_MS: u32 = 1000;
+const DEFAULT_TIMEOUT_MS: u32 = 1500;
 #[cfg(windows)]
 const HID_PACKET_LENGTH: usize = 64;
 #[cfg(windows)]
@@ -776,7 +776,11 @@ impl KrakenDevice {
 
     fn read_until(&mut self, prefixes: &[[u8; 2]], timeout_ms: u32) -> Result<Vec<u8>, String> {
         for _ in 0..MAX_READ_UNTIL_RETRIES {
-            let packet = self.read_packet(timeout_ms)?;
+            let packet = match self.read_packet(timeout_ms) {
+                Ok(packet) => packet,
+                Err(error) if error == "HID read timeout" => continue,
+                Err(error) => return Err(error),
+            };
             for view in packet_views(&packet) {
                 if view.len() >= 2 {
                     let prefix = [view[0], view[1]];

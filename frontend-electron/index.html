@@ -24,7 +24,7 @@
         <section class="content-grid">
           <div class="left-column">
             <p class="support-copy">
-              Supports GIF only. The app writes directly to the LCD over USB and does not require vendor control software.
+              This app writes directly to the LCD over USB and does not require vendor control software.
             </p>
 
             <div class="search-card">
@@ -36,7 +36,7 @@
                 <span class="search-badge">KLIPY</span>
               </div>
               <div class="search-row">
-                <input id="search-input" class="search-input" type="text" placeholder="Search for black hole, synthwave, nyan cat..." />
+                <input id="search-input" class="search-input" type="text" placeholder="Search for a GIF..." />
                 <button id="search-button" class="secondary-button">Search</button>
               </div>
               <p class="search-help">Search downloads GIFs into your local gallery. Click Add to save a result into the app and deploy it like any other GIF.</p>
@@ -144,7 +144,7 @@
             <div class="support-card">
               <div class="support-copy-block">
                 <p class="section-label">Project Links</p>
-                <h3>Support, updates, and source</h3>
+                <h3>Support, updates, and more!</h3>
               </div>
               <div class="support-links-grid">
                 <a class="support-link support-link--sponsor" href="https://github.com/sponsors/Cesarsk" target="_blank" rel="noreferrer" aria-label="GitHub Sponsors">
@@ -312,7 +312,10 @@
             <p class="section-label">Gallery</p>
             <h2>All GIFs</h2>
           </div>
-          <button id="close-gallery-button" class="icon-button">x</button>
+          <div class="modal-header-actions">
+            <button id="gallery-modal-delete-button" class="ghost-button compact-button destructive-button" disabled>Delete</button>
+            <button id="close-gallery-button" class="icon-button">x</button>
+          </div>
         </div>
         <p id="gallery-modal-meta" class="modal-copy">Browse every GIF in your local app gallery.</p>
         <div id="gallery-modal-grid" class="gallery-modal-grid"></div>
