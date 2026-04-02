@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { execFileSync, spawn } = require('child_process');
@@ -23,6 +23,7 @@ const WINDOW_ICON_PATH = path.join(
   'assets',
   process.platform === 'win32' ? 'app-icon.ico' : 'app-icon.png'
 );
+const FALLBACK_ICON_PATH = path.join(__dirname, 'assets', 'app-icon.png');
 const GALLERY_PAGE_SIZE = 6;
 const SEARCH_PAGE_SIZE = 4;
 const DEVICE_MAX_GIF_BYTES = 20 * 1024 * 1024;
@@ -593,7 +594,8 @@ async function downloadSearchResult({ url, title }) {
     return {
       path: existingByUrl.path,
       name: path.basename(existingByUrl.path),
-      displayName: existingByUrl.displayName
+      displayName: existingByUrl.displayName,
+      alreadyExists: true
     };
   }
 
@@ -609,7 +611,8 @@ async function downloadSearchResult({ url, title }) {
     return {
       path: existingByDigest.path,
       name: path.basename(existingByDigest.path),
-      displayName: existingByDigest.displayName
+      displayName: existingByDigest.displayName,
+      alreadyExists: true
     };
   }
 
@@ -638,7 +641,10 @@ function copyIntoGallery(sourcePath) {
   const digest = fileBufferSha256(buffer);
   const existing = findGalleryItemByDigest(digest);
   if (existing) {
-    return existing;
+    return {
+      ...existing,
+      alreadyExists: true
+    };
   }
 
   const parsed = path.parse(sourcePath);
@@ -746,12 +752,36 @@ function refreshTrayMenu() {
   ]));
 }
 
+function resolveTrayIcon() {
+  const candidates = [WINDOW_ICON_PATH, FALLBACK_ICON_PATH];
+  for (const iconPath of candidates) {
+    try {
+      if (!fs.existsSync(iconPath)) {
+        continue;
+      }
+      const icon = nativeImage.createFromPath(iconPath);
+      if (!icon.isEmpty()) {
+        return icon;
+      }
+    } catch {}
+  }
+
+  throw new Error(`Failed to load tray icon from ${WINDOW_ICON_PATH} or ${FALLBACK_ICON_PATH}`);
+}
+
+function resolveWindowIcon() {
+  if (fs.existsSync(WINDOW_ICON_PATH)) {
+    return WINDOW_ICON_PATH;
+  }
+  return FALLBACK_ICON_PATH;
+}
+
 function createTray() {
   if (tray) {
     return tray;
   }
 
-  tray = new Tray(WINDOW_ICON_PATH);
+  tray = new Tray(resolveTrayIcon());
   tray.setToolTip('Kraken Unleashed');
   tray.on('double-click', () => {
     showMainWindow();
@@ -780,7 +810,7 @@ function createWindow() {
     minHeight: 680,
     show: !shouldStartHidden(),
     skipTaskbar: shouldStartHidden(),
-    icon: WINDOW_ICON_PATH,
+    icon: resolveWindowIcon(),
     backgroundColor: '#17181d',
     autoHideMenuBar: true,
     webPreferences: {
@@ -865,7 +895,8 @@ ipcMain.handle('app:pick-file', async () => {
   const storedAsset = selectedPath.startsWith(GALLERY_DIR)
     ? {
         path: selectedPath,
-        displayName: cleanDisplayName(path.parse(selectedPath).name)
+        displayName: cleanDisplayName(path.parse(selectedPath).name),
+        alreadyExists: true
       }
     : copyIntoGallery(selectedPath);
 
@@ -931,6 +962,9 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     showMainWindow();
   });
+}).catch((error) => {
+  console.error('Failed to initialize Kraken Unleashed:', error);
+  app.quit();
 });
 
 app.on('window-all-closed', () => {
