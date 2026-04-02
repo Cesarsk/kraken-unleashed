@@ -31,7 +31,8 @@ const state = {
   deployProgressValue: 0,
   appMeta: null,
   settings: null,
-  searchPreviewItem: null
+  searchPreviewItem: null,
+  galleryModalSelectedPath: null
 };
 
 const compatibilityCatalog = [
@@ -88,6 +89,7 @@ const els = {
   galleryPageLabel: document.getElementById('gallery-page-label'),
   galleryNextButton: document.getElementById('gallery-next-button'),
   galleryModal: document.getElementById('gallery-modal'),
+  galleryModalSelectButton: document.getElementById('gallery-modal-select-button'),
   galleryModalDeleteButton: document.getElementById('gallery-modal-delete-button'),
   closeGalleryButton: document.getElementById('close-gallery-button'),
   galleryModalMeta: document.getElementById('gallery-modal-meta'),
@@ -210,8 +212,7 @@ function setSearchSessionOpen(open) {
 }
 
 function updateSearchPagination() {
-  const hasResults = state.searchResults.length > 0 && state.searchSessionOpen;
-  const shouldShow = hasResults || state.searchPage > 1 || Boolean(state.searchNextCursor);
+  const shouldShow = state.searchSessionOpen && (state.searchPage > 1 || Boolean(state.searchNextCursor));
   els.searchPagination.classList.toggle('hidden', !shouldShow);
   els.searchPagination.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
   els.searchPageLabel.textContent = `Page ${state.searchPage}`;
@@ -324,6 +325,9 @@ function updateGalleryPagination(totalItems = state.gallery.length) {
   const pageSize = getGalleryPageSize();
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   state.galleryPage = Math.min(totalPages, Math.max(1, state.galleryPage));
+  const shouldShow = totalPages > 1;
+  els.galleryPagination.classList.toggle('hidden', !shouldShow);
+  els.galleryPagination.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
   els.galleryPageLabel.textContent = `Page ${state.galleryPage} / ${totalPages}`;
   els.galleryPrevButton.disabled = state.galleryPage <= 1;
   els.galleryNextButton.disabled = state.galleryPage >= totalPages;
@@ -333,10 +337,16 @@ function selectedGalleryItem() {
   return state.gallery.find((item) => item.path === state.assetPath) || null;
 }
 
+function selectedGalleryModalItem() {
+  return state.gallery.find((item) => item.path === state.galleryModalSelectedPath) || null;
+}
+
 function updateGalleryActions() {
   const disabled = !selectedGalleryItem() || state.deployBusy;
   els.galleryDeleteButton.disabled = disabled;
-  els.galleryModalDeleteButton.disabled = disabled;
+  const modalDisabled = !selectedGalleryModalItem() || state.deployBusy;
+  els.galleryModalDeleteButton.disabled = modalDisabled;
+  els.galleryModalSelectButton.disabled = modalDisabled;
 }
 
 function setStatus(message) {
@@ -576,16 +586,14 @@ function renderGalleryModal() {
 
   for (const item of state.gallery) {
     const wrapper = document.createElement('div');
-    wrapper.className = `gallery-modal-item ${item.path === state.assetPath ? 'active' : ''}`;
+    wrapper.className = `gallery-modal-item ${item.path === state.galleryModalSelectedPath ? 'active' : ''}`;
 
     const button = document.createElement('button');
     button.type = 'button';
     button.setAttribute('aria-label', `Select ${item.displayName || item.name}`);
-    button.addEventListener('click', async () => {
-      await setSelectedAsset(item.path, item.displayName || item.name);
-      renderGallery();
+    button.addEventListener('click', () => {
+      state.galleryModalSelectedPath = item.path;
       renderGalleryModal();
-      closeGalleryModal();
     });
 
     const img = document.createElement('img');
@@ -600,27 +608,38 @@ function renderGalleryModal() {
     wrapper.appendChild(label);
     els.galleryModalGrid.appendChild(wrapper);
   }
+
+  updateGalleryActions();
 }
 
 function openGalleryModal() {
+  state.galleryModalSelectedPath = state.assetPath;
   renderGalleryModal();
   els.galleryModal.classList.remove('hidden');
   els.galleryModal.setAttribute('aria-hidden', 'false');
+  updateGalleryActions();
 }
 
 function closeGalleryModal() {
   els.galleryModal.classList.add('hidden');
   els.galleryModal.setAttribute('aria-hidden', 'true');
+  state.galleryModalSelectedPath = null;
+  updateGalleryActions();
 }
 
 async function deleteSelectedAsset() {
-  const selectedItem = selectedGalleryItem();
+  const selectedItem = els.galleryModal.classList.contains('hidden')
+    ? selectedGalleryItem()
+    : selectedGalleryModalItem();
   if (!selectedItem || state.deployBusy) {
     return;
   }
   await window.krakenApp.deleteAsset(selectedItem.path);
   if (state.assetPath === selectedItem.path) {
     await setSelectedAsset(null, null);
+  }
+  if (state.galleryModalSelectedPath === selectedItem.path) {
+    state.galleryModalSelectedPath = null;
   }
   await refreshGallery();
   showToast(`Deleted ${selectedItem.displayName || selectedItem.name}.`);
@@ -764,7 +783,7 @@ function renderSearchResults() {
         renderGallery();
         showToast(
           downloaded.alreadyExists
-            ? `${downloaded.displayName || downloaded.name} is already in the gallery.`
+            ? `${downloaded.displayName || downloaded.name} already downloaded!`
             : `Added ${downloaded.displayName || downloaded.name} to the gallery.`
         );
       } catch (error) {
@@ -1074,7 +1093,7 @@ els.uploadButton.addEventListener('click', async () => {
   renderGallery();
   showToast(
     picked.alreadyExists
-      ? `${picked.displayName || picked.name} is already in the gallery.`
+      ? `${picked.displayName || picked.name} already downloaded!`
       : `Added ${picked.displayName || picked.name} to the gallery.`
   );
 });
@@ -1108,6 +1127,15 @@ els.galleryModalDeleteButton.addEventListener('click', async () => {
   } catch (error) {
     showToast(error.message, 'error');
   }
+});
+els.galleryModalSelectButton.addEventListener('click', async () => {
+  const selectedItem = selectedGalleryModalItem();
+  if (!selectedItem) {
+    return;
+  }
+  await setSelectedAsset(selectedItem.path, selectedItem.displayName || selectedItem.name);
+  renderGallery();
+  closeGalleryModal();
 });
 
 els.searchButton.addEventListener('click', runSearch);
