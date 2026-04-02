@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, shell } = require('elec
 const fs = require('fs');
 const path = require('path');
 const { execFileSync, spawn } = require('child_process');
+const crypto = require('crypto');
 let appConfig = {};
 try {
   appConfig = require('./app-config');
@@ -34,7 +35,8 @@ const RUST_MANIFEST_PATH = path.join(SOURCE_ROOT, 'backend-rust', 'Cargo.toml');
 const RUST_BINARY_NAME = process.platform === 'win32'
   ? 'kraken-unleashed-backend.exe'
   : 'kraken-unleashed-backend';
-const STARTUP_ARG = '--startup';
+const STARTUP_ARG = 'startup-launch';
+const LEGACY_STARTUP_ARG = '--startup';
 const APP_USER_MODEL_ID = 'com.cesarsk.krakenunleashed';
 const STARTUP_SHORTCUT_NAME = 'Kraken Unleashed.lnk';
 const DEFAULT_SETTINGS = {
@@ -50,6 +52,15 @@ let selectedBridge = null;
 let isQuitting = false;
 let currentSettings = null;
 const DEPLOY_PROGRESS_EVENT = 'app:deploy-progress';
+
+function getProcessArgs() {
+  return process.argv.slice(1);
+}
+
+function wasLaunchedOnStartup() {
+  const args = getProcessArgs();
+  return args.includes(STARTUP_ARG) || args.includes(LEGACY_STARTUP_ARG);
+}
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -174,6 +185,48 @@ function cleanDisplayName(name, fallback = 'Untitled GIF') {
   return normalized || fallback;
 }
 
+function fileBufferSha256(buffer) {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+function findGalleryItemByDigest(digest) {
+  if (!digest) {
+    return null;
+  }
+  const metadata = readGalleryMetadata();
+  const match = Object.entries(metadata).find(([, entry]) => entry?.digest === digest);
+  if (!match) {
+    return null;
+  }
+  const [assetPath] = match;
+  return assetExists(assetPath)
+    ? {
+        path: assetPath,
+        displayName: metadata[assetPath]?.displayName || cleanDisplayName(path.parse(assetPath).name),
+        alreadyExists: true
+      }
+    : null;
+}
+
+function findGalleryItemBySourceUrl(sourceUrl) {
+  if (!sourceUrl) {
+    return null;
+  }
+  const metadata = readGalleryMetadata();
+  const match = Object.entries(metadata).find(([, entry]) => entry?.sourceUrl === sourceUrl);
+  if (!match) {
+    return null;
+  }
+  const [assetPath] = match;
+  return assetExists(assetPath)
+    ? {
+        path: assetPath,
+        displayName: metadata[assetPath]?.displayName || cleanDisplayName(path.parse(assetPath).name),
+        alreadyExists: true
+      }
+    : null;
+}
+
 function getStoredSettings() {
   const appState = readAppState();
   return {
@@ -287,6 +340,24 @@ function applyLaunchAtLogin(enabled) {
   }
 }
 
+function refreshStartupShortcutIfNeeded() {
+  if (process.platform !== 'win32') {
+    return;
+  }
+  const settings = getCurrentSettings();
+  if (!settings.launchAtLogin) {
+    return;
+  }
+  const startupShortcutPath = getStartupShortcutPath();
+  if (!fs.existsSync(startupShortcutPath)) {
+    return;
+  }
+
+  try {
+    writeStartupShortcut(startupShortcutPath);
+  } catch {}
+}
+
 function updateSettings(patch) {
   const nextSettings = {
     ...getCurrentSettings(),
@@ -304,7 +375,7 @@ function updateSettings(patch) {
 
 function shouldStartHidden() {
   const settings = getCurrentSettings();
-  return process.argv.includes(STARTUP_ARG) && settings.launchAtLogin && settings.startHiddenOnLaunch;
+  return wasLaunchedOnStartup() && settings.startHiddenOnLaunch;
 }
 
 function assetExists(assetPath) {
@@ -517,41 +588,72 @@ async function searchKlipy(request) {
 
 async function downloadSearchResult({ url, title }) {
   ensureDir(UPLOADS_DIR);
+  const existingByUrl = findGalleryItemBySourceUrl(url);
+  if (existingByUrl) {
+    return {
+      path: existingByUrl.path,
+      name: path.basename(existingByUrl.path),
+      displayName: existingByUrl.displayName
+    };
+  }
+
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`GIF download failed with status ${response.status}`);
   }
 
-  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const digest = fileBufferSha256(buffer);
+  const existingByDigest = findGalleryItemByDigest(digest);
+  if (existingByDigest) {
+    return {
+      path: existingByDigest.path,
+      name: path.basename(existingByDigest.path),
+      displayName: existingByDigest.displayName
+    };
+  }
+
   const fileName = `${Date.now()}-${sanitizeFileName(title || 'klipy-result')}.gif`;
   const targetPath = path.join(UPLOADS_DIR, fileName);
-  fs.writeFileSync(targetPath, Buffer.from(arrayBuffer));
+  fs.writeFileSync(targetPath, buffer);
   const metadata = readGalleryMetadata();
   metadata[targetPath] = {
-    displayName: cleanDisplayName(title, 'Klipy GIF')
+    displayName: cleanDisplayName(title, 'Klipy GIF'),
+    digest,
+    sourceUrl: url
   };
   writeGalleryMetadata(metadata);
 
   return {
     path: targetPath,
     name: path.basename(targetPath),
-    displayName: metadata[targetPath].displayName
+    displayName: metadata[targetPath].displayName,
+    alreadyExists: false
   };
 }
 
 function copyIntoGallery(sourcePath) {
   ensureDir(UPLOADS_DIR);
+  const buffer = fs.readFileSync(sourcePath);
+  const digest = fileBufferSha256(buffer);
+  const existing = findGalleryItemByDigest(digest);
+  if (existing) {
+    return existing;
+  }
+
   const parsed = path.parse(sourcePath);
   const targetPath = path.join(UPLOADS_DIR, `${Date.now()}-${parsed.base.replace(/\s+/g, '-')}`);
-  fs.copyFileSync(sourcePath, targetPath);
+  fs.writeFileSync(targetPath, buffer);
   const metadata = readGalleryMetadata();
   metadata[targetPath] = {
-    displayName: cleanDisplayName(parsed.name)
+    displayName: cleanDisplayName(parsed.name),
+    digest
   };
   writeGalleryMetadata(metadata);
   return {
     path: targetPath,
-    displayName: metadata[targetPath].displayName
+    displayName: metadata[targetPath].displayName,
+    alreadyExists: false
   };
 }
 
@@ -595,6 +697,7 @@ function showMainWindow() {
   if (window.isMinimized()) {
     window.restore();
   }
+  window.setSkipTaskbar(false);
   window.show();
   window.focus();
   return window;
@@ -602,6 +705,7 @@ function showMainWindow() {
 
 function hideMainWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setSkipTaskbar(true);
     mainWindow.hide();
   }
 }
@@ -675,6 +779,7 @@ function createWindow() {
     minWidth: 1020,
     minHeight: 680,
     show: !shouldStartHidden(),
+    skipTaskbar: shouldStartHidden(),
     icon: WINDOW_ICON_PATH,
     backgroundColor: '#17181d',
     autoHideMenuBar: true,
@@ -725,7 +830,7 @@ ipcMain.handle('app:get-app-meta', async () => ({
   galleryPageSize: GALLERY_PAGE_SIZE,
   searchPageSize: SEARCH_PAGE_SIZE,
   deviceMaxGifBytes: DEVICE_MAX_GIF_BYTES,
-  launchedOnStartup: process.argv.includes(STARTUP_ARG)
+  launchedOnStartup: wasLaunchedOnStartup()
 }));
 ipcMain.handle('app:get-settings', async () => getCurrentSettings());
 ipcMain.handle('app:update-settings', async (_event, patch) => updateSettings(patch || {}));
@@ -767,7 +872,8 @@ ipcMain.handle('app:pick-file', async () => {
   return {
     path: storedAsset.path,
     name: path.basename(storedAsset.path),
-    displayName: storedAsset.displayName
+    displayName: storedAsset.displayName,
+    alreadyExists: Boolean(storedAsset.alreadyExists)
   };
 });
 ipcMain.handle('app:get-preset', async (_event, assetPath) => getPreset(assetPath));
@@ -809,12 +915,17 @@ ipcMain.handle('app:write-asset', async (event, payload) => {
   });
 });
 
-app.on('second-instance', () => {
+app.on('second-instance', (_event, argv) => {
+  const launchedFromStartup = argv.includes(STARTUP_ARG) || argv.includes(LEGACY_STARTUP_ARG);
+  if (launchedFromStartup && getCurrentSettings().startHiddenOnLaunch) {
+    return;
+  }
   showMainWindow();
 });
 
 app.whenReady().then(() => {
   getCurrentSettings();
+  refreshStartupShortcutIfNeeded();
   createTray();
   createWindow();
   app.on('activate', () => {

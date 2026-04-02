@@ -113,7 +113,7 @@ Privacy policy: [PRIVACY.md](./PRIVACY.md)
 - SignalRGB integration
 - CLI support for scripted usage and automation
 - loop controls to help organize and fine-tune perfect seamless GIF loops
-- more modes beyond GIF-only, including slideshow, web integration, clock, text, and music mode
+- more modes beyond GIF-only, including slideshow, web integration, clock, text, , temperatures and music mode
 - broader cooler model support, with community contributions welcome for adding and validating more devices
 
 ## Contributing
