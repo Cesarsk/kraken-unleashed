@@ -5,7 +5,7 @@
 <h1 align="center">Kraken Unleashed</h1>
 
 <p align="center">
-  The clean way to put custom GIFs on supported Kraken LCD coolers.
+  A third-party small utility to deploy custom GIFs on supported Kraken LCD coolers.
 </p>
 
 <p align="center">
