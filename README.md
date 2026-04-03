@@ -62,6 +62,29 @@ Also listed in the compatibility view:
 
 More device support is planned (not necessarly Kraken coolers), and community validation is welcome.
 
+## Roadmap
+
+- SignalRGB integration
+- Autoupdater
+- CLI support for scripted usage and automation
+- loop controls to help organize and fine-tune perfect seamless GIF loops
+- more modes beyond GIF-only, including slideshow, web integration, clock, text, , temperatures and music mode
+- broader cooler model support, with community contributions welcome for adding and validating more devices
+
+## Contributing
+
+Contributions are welcome, especially for expanding cooler support.
+
+If you want to add or validate a new model, include as much of this as you can:
+
+- exact cooler model name
+- USB `VID` and `PID`
+- detected screen resolution
+- whether detection, brightness, recovery, and GIF deploy all work
+- logs, screenshots, or short notes about anything unusual
+
+Hardware validation from real devices is especially useful.
+
 ## Build From Source
 
 ### Requirements
@@ -107,29 +130,6 @@ Only official release artifacts built from the source code in this repository an
 ### Privacy
 
 Privacy policy: [PRIVACY.md](./PRIVACY.md)
-
-## Roadmap
-
-- SignalRGB integration
-- Autoupdater
-- CLI support for scripted usage and automation
-- loop controls to help organize and fine-tune perfect seamless GIF loops
-- more modes beyond GIF-only, including slideshow, web integration, clock, text, , temperatures and music mode
-- broader cooler model support, with community contributions welcome for adding and validating more devices
-
-## Contributing
-
-Contributions are welcome, especially for expanding cooler support.
-
-If you want to add or validate a new model, include as much of this as you can:
-
-- exact cooler model name
-- USB `VID` and `PID`
-- detected screen resolution
-- whether detection, brightness, recovery, and GIF deploy all work
-- logs, screenshots, or short notes about anything unusual
-
-Hardware validation from real devices is especially useful.
 
 ## License
 
