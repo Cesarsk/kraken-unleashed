@@ -111,6 +111,7 @@ Privacy policy: [PRIVACY.md](./PRIVACY.md)
 ## Roadmap
 
 - SignalRGB integration
+- Autoupdater
 - CLI support for scripted usage and automation
 - loop controls to help organize and fine-tune perfect seamless GIF loops
 - more modes beyond GIF-only, including slideshow, web integration, clock, text, , temperatures and music mode
