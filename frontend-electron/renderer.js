@@ -392,8 +392,8 @@ function setDeviceControlState(connected) {
   els.displayPowerButton.disabled = !connected;
   els.displayPowerButton.textContent = state.lcdPoweredOff ? 'Wake LCD' : 'Shutdown LCD';
   els.recoverButton.disabled = !connected;
-  els.rotateButton.disabled = !connected || !state.assetPath || state.deployBusy;
-  els.editButton.disabled = !connected || !state.assetPath || state.deployBusy;
+  els.rotateButton.disabled = !state.assetPath || state.deployBusy;
+  els.editButton.disabled = !state.assetPath || state.deployBusy;
   els.writeButton.disabled = !connected || !state.assetPath || state.deployBusy;
   updateGalleryActions();
 }

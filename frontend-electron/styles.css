@@ -301,6 +301,12 @@ input[type='range'] {
   accent-color: var(--accent);
 }
 
+input[type='range']:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: saturate(0.35);
+}
+
 select,
 button {
   border: 0;
@@ -356,9 +362,18 @@ select {
   transform: translateY(-1px);
 }
 
-.primary-button:disabled {
+.primary-button:disabled,
+.secondary-button:disabled,
+.ghost-button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.primary-button:disabled:hover,
+.secondary-button:disabled:hover,
+.ghost-button:disabled:hover {
   transform: none;
 }
 
