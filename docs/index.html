@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kraken Unleashed</title>
+    <meta
+      name="description"
+      content="Push GIFs directly to supported Kraken LCD coolers from a fast native desktop app."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/svg+xml" href="./assets/app-icon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="./">
+          <img src="./assets/app-icon.svg" alt="Kraken Unleashed icon" />
+          <span>Kraken Unleashed</span>
+        </a>
+        <nav class="site-nav">
+          <a href="#devices">Devices</a>
+          <a href="#build">Build</a>
+          <a href="#trust">Trust</a>
+          <a href="./privacy.html">Privacy</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="hero-card">
+          <div class="hero-copy">
+            <p class="eyebrow">Windows-native LCD control</p>
+            <h1>Direct GIF deployment for supported Kraken coolers.</h1>
+            <p class="hero-text">
+              Kraken Unleashed writes animated GIFs straight to supported Kraken LCD displays with
+              a native desktop workflow: detect the device, frame the asset, deploy it, and recover
+              the screen fast if it gets stuck.
+            </p>
+            <div class="hero-actions">
+              <a class="primary-link" href="https://github.com/Cesarsk/kraken-unleashed/releases"
+                >Download Releases</a
+              >
+              <a class="secondary-link" href="https://github.com/Cesarsk/kraken-unleashed"
+                >View Source</a
+              >
+            </div>
+          </div>
+          <div class="hero-stage">
+            <div class="hero-orbit hero-orbit-a"></div>
+            <div class="hero-orbit hero-orbit-b"></div>
+            <div class="screen-card">
+              <div class="screen-head">
+                <span class="screen-dot"></span>
+                <span class="screen-dot"></span>
+                <span class="screen-dot"></span>
+              </div>
+              <div class="screen-body">
+                <div class="screen-ring">
+                  <div class="screen-ring-inner"></div>
+                </div>
+                <ul class="screen-points">
+                  <li>Device detect</li>
+                  <li>Placement editor</li>
+                  <li>Brightness + recovery</li>
+                  <li>Rust backend over USB</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="metrics-grid">
+          <article class="metric-card">
+            <span class="metric-label">Platform</span>
+            <strong>Windows</strong>
+            <p>Focused desktop build with Electron UI and native Rust device control.</p>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Media Today</span>
+            <strong>GIF Only</strong>
+            <p>Upload, place, rotate, and write animated GIFs directly to the LCD.</p>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Release Model</span>
+            <strong>Tagged Stable Releases</strong>
+            <p>Packaged Windows builds are published from versioned Git tags.</p>
+          </article>
+        </section>
+
+        <section class="section-grid">
+          <article class="panel-card">
+            <p class="section-label">Why People Use It</p>
+            <h2>Built around the actual LCD workflow.</h2>
+            <div class="feature-list">
+              <div class="feature-item">
+                <h3>Direct USB deployment</h3>
+                <p>Write straight to the cooler LCD without relying on vendor control software.</p>
+              </div>
+              <div class="feature-item">
+                <h3>Per-GIF presets</h3>
+                <p>Keep zoom, pan, and rotation aligned per asset instead of redoing edits.</p>
+              </div>
+              <div class="feature-item">
+                <h3>Recovery tools</h3>
+                <p>Brightness, display shutdown, and restore flows are built into the same app.</p>
+              </div>
+              <div class="feature-item">
+                <h3>Simple local gallery</h3>
+                <p>Import or search GIFs, keep them local, and redeploy from a clean gallery.</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel-card panel-card-accent" id="devices">
+            <p class="section-label">Supported Devices</p>
+            <h2>Validated first, broader support next.</h2>
+            <ul class="device-list">
+              <li>
+                <strong>Kraken Elite RGB 2024 / Kraken Elite V2</strong>
+                <span>Validated in the app with PID `0x3012`.</span>
+              </li>
+              <li>
+                <strong>Kraken Elite 2023</strong>
+                <span>Listed in compatibility view with supported backend path.</span>
+              </li>
+              <li>
+                <strong>Kraken Z3</strong>
+                <span>Legacy support path remains listed for compatibility checks.</span>
+              </li>
+            </ul>
+            <p class="support-note">
+              Community validation is welcome for additional models and device revisions.
+            </p>
+          </article>
+        </section>
+
+        <section class="timeline-card">
+          <div class="timeline-copy">
+            <p class="section-label">Workflow</p>
+            <h2>What using the app looks like.</h2>
+          </div>
+          <ol class="timeline">
+            <li>Launch the app and let it detect the connected LCD.</li>
+            <li>Upload a GIF and select it from the local gallery.</li>
+            <li>Use the editor to adjust zoom, pan, and rotation.</li>
+            <li>Deploy the prepared GIF directly to the cooler display.</li>
+            <li>Use Restore Liquid Screen if the LCD needs a clean reset.</li>
+          </ol>
+        </section>
+
+        <section class="section-grid" id="build">
+          <article class="panel-card">
+            <p class="section-label">Build From Source</p>
+            <h2>Run locally or package for Windows.</h2>
+            <div class="code-panel">
+              <span class="code-label">Run locally</span>
+              <pre><code>npm install
+npm run backend:stage
+npm start</code></pre>
+            </div>
+            <div class="code-panel">
+              <span class="code-label">Build installer artifacts</span>
+              <pre><code>npm install
+npm run dist:win</code></pre>
+            </div>
+            <p class="body-copy">
+              Release packaging expects Node.js 22.x, plus a Rust toolchain and a supported Kraken
+              LCD connected over USB for real hardware validation.
+            </p>
+          </article>
+
+          <article class="panel-card">
+            <p class="section-label">Native Backend</p>
+            <h2>Current device-facing commands.</h2>
+            <ul class="command-list">
+              <li><code>info</code><span>Detect a supported Kraken LCD and report resolution.</span></li>
+              <li><code>brightness</code><span>Set LCD brightness from 0 to 100.</span></li>
+              <li><code>recover</code><span>Return the screen to liquid display mode.</span></li>
+              <li><code>write</code><span>Prepare and transfer a GIF directly to the device.</span></li>
+            </ul>
+          </article>
+        </section>
+
+        <section class="section-grid" id="trust">
+          <article class="panel-card">
+            <p class="section-label">Trust And Safety</p>
+            <h2>What the project does and does not do.</h2>
+            <ul class="plain-list">
+              <li>This app writes directly to the LCD device over USB.</li>
+              <li>There is no analytics or usage telemetry built into the app.</li>
+              <li>Most activity stays local unless you use optional GIF search.</li>
+              <li>Keep competing control software closed while deploying.</li>
+            </ul>
+            <div class="trust-links">
+              <a href="./privacy.html">Read privacy policy</a>
+              <a href="https://signpath.org/">SignPath Foundation</a>
+            </div>
+          </article>
+
+          <article class="panel-card panel-card-roadmap">
+            <p class="section-label">Roadmap</p>
+            <h2>Where the project is headed.</h2>
+            <ul class="plain-list">
+              <li>SignalRGB integration</li>
+              <li>CLI support for scripted usage and automation</li>
+              <li>Loop controls for cleaner seamless GIF workflows</li>
+              <li>More modes beyond GIF-only, including slideshow, web, clock, and text</li>
+              <li>Broader cooler model support with community validation</li>
+            </ul>
+          </article>
+        </section>
+
+        <section class="footer-cta">
+          <div>
+            <p class="section-label">Contributing</p>
+            <h2>Hardware validation matters.</h2>
+            <p class="body-copy">
+              Contributions are welcome, especially for additional cooler support. Exact model name,
+              USB VID/PID, resolution, and notes about detection, brightness, recovery, and deploy
+              behavior are the most useful contributions.
+            </p>
+          </div>
+          <div class="hero-actions">
+            <a class="primary-link" href="https://github.com/Cesarsk/kraken-unleashed/issues"
+              >Open an Issue</a
+            >
+            <a class="secondary-link" href="https://github.com/Cesarsk/kraken-unleashed"
+              >Repository</a
+            >
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
