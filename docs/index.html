@@ -6,7 +6,7 @@
     <title>Kraken Unleashed</title>
     <meta
       name="description"
-      content="A third-party small utility to deploy custom GIFs on supported Kraken LCD coolers."
+      content="A third-party Windows utility to deploy custom GIFs to supported Kraken LCD coolers."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,13 +18,6 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="announcement-bar">
-      <div class="layout-shell announcement-inner">
-        <span class="pill-badge pill-badge-success">Open Source</span>
-        <p>Desktop utility for deploying custom GIFs on supported Kraken LCD coolers.</p>
-      </div>
-    </div>
-
     <header class="site-header">
       <div class="layout-shell header-inner">
         <a class="brand" href="./">
@@ -32,9 +25,7 @@
           <span>Kraken Unleashed</span>
         </a>
         <nav class="site-nav">
-          <a href="#features">Features</a>
           <a href="#devices">Devices</a>
-          <a href="#build">Build</a>
           <a href="./privacy.html">Privacy</a>
         </nav>
         <div class="header-actions">
@@ -48,31 +39,27 @@
       <section class="hero-section">
         <div class="layout-shell hero-grid">
           <div class="hero-copy">
-            <span class="section-kicker">Third-party GIF utility</span>
-            <h1>Custom GIF deployment, without the bloated control stack.</h1>
+            <span class="section-kicker">Windows desktop app</span>
+            <h1>Put custom GIFs on supported Kraken LCD coolers.</h1>
             <p class="hero-body">
-              Kraken Unleashed is a focused Windows desktop app for getting great-looking GIFs
-              onto supported Kraken LCD coolers. Detect the screen, position the asset, deploy it,
-              and move on.
+              A focused desktop utility for quick deploy, in-app GIF search, and simple recovery
+              tools, without the usual control-software overhead.
             </p>
             <div class="hero-actions">
               <a class="button button-primary button-large" href="https://github.com/Cesarsk/kraken-unleashed/releases">
                 Download for Windows
               </a>
-              <a class="button button-outline button-large" href="#build">Build from source</a>
+              <a class="button button-outline button-large" href="https://github.com/Cesarsk/kraken-unleashed">
+                View source
+              </a>
             </div>
-            <ul class="hero-points">
-              <li>Fast deploy</li>
-              <li>Search GIF online</li>
-              <li>Brightness and recovery tools</li>
-            </ul>
           </div>
 
           <div class="hero-stack">
             <article class="surface-card spotlight-card">
               <div class="spotlight-head">
-                <span class="pill-badge">Current status</span>
-                <span class="tiny-label">Windows only</span>
+                <span class="pill-badge pill-badge-success">Open source</span>
+                <span class="tiny-label">GIF only</span>
               </div>
               <div class="spotlight-ring">
                 <div class="spotlight-ring-inner">
@@ -81,164 +68,51 @@
               </div>
               <div class="spotlight-grid">
                 <div>
-                  <strong>GIF only</strong>
-                  <p>Media support is intentionally narrow today so deploy stays reliable.</p>
+                  <strong>Fast deploy</strong>
+                  <p>Detect, position, write.</p>
                 </div>
                 <div>
-                  <strong>Direct device flow</strong>
-                  <p>Detection, brightness, recovery, and LCD writes live in one focused app.</p>
+                  <strong>Recovery tools</strong>
+                  <p>Brightness and LCD recovery in one app.</p>
                 </div>
               </div>
-            </article>
-
-            <article class="surface-card compact-card">
-              <div class="compact-card-head">
-                <span class="tiny-label">Validated device</span>
-                <strong>Kraken Elite RGB 2024 / Kraken Elite V2</strong>
-              </div>
-              <p>Confirmed in-app with PID <code>0x3012</code>.</p>
             </article>
           </div>
         </div>
       </section>
 
-      <section class="content-section" id="features">
-        <div class="layout-shell">
-          <div class="section-head">
-            <span class="section-kicker">Why it feels better</span>
-            <h2>Built around the actual LCD workflow.</h2>
-            <p>
-              The app stays narrow on purpose. It focuses on deploy speed, device recovery, and
-              keeping per-GIF adjustments where you actually need them.
-            </p>
-          </div>
-
-          <div class="card-grid card-grid-four">
-            <article class="surface-card feature-card">
-              <span class="tiny-label">Deploy</span>
-              <h3>Easy GIF deploy</h3>
-              <p>Push content to the LCD without needing the official app in the loop.</p>
-            </article>
-            <article class="surface-card feature-card">
-              <span class="tiny-label">Search</span>
-              <h3>In-app download</h3>
-              <p>Search and download GIFs directly through the app instead of juggling tabs.</p>
-            </article>
-            <article class="surface-card feature-card">
-              <span class="tiny-label">Control</span>
-              <h3>Per-GIF presets</h3>
-              <p>Save zoom, pan, and rotation settings for each asset in your local gallery.</p>
-            </article>
-            <article class="surface-card feature-card">
-              <span class="tiny-label">Recovery</span>
-              <h3>Device tools</h3>
-              <p>Adjust brightness and recover the display from the same desktop workflow.</p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="content-section content-section-alt" id="devices">
-        <div class="layout-shell two-column-grid">
-          <article class="surface-card section-card">
-            <span class="section-kicker">Supported devices</span>
-            <h2>Validated models first, broader support next.</h2>
-            <div class="device-list">
-              <div class="device-item device-item-strong">
-                <div>
-                  <strong>Kraken Elite RGB 2024 / Kraken Elite V2</strong>
-                  <p>Validated in this app.</p>
-                </div>
-                <span class="pill-badge pill-badge-success">PID 0x3012</span>
-              </div>
-              <div class="device-item">
-                <div>
-                  <strong>Kraken Elite 2023</strong>
-                  <p>Listed in the compatibility view.</p>
-                </div>
-                <span class="pill-badge">PID 0x300C</span>
-              </div>
-              <div class="device-item">
-                <div>
-                  <strong>Kraken Z3</strong>
-                  <p>Listed in the compatibility view.</p>
-                </div>
-                <span class="pill-badge">PID 0x3008</span>
-              </div>
-            </div>
+      <section class="content-section content-section-tight">
+        <div class="layout-shell card-grid card-grid-three">
+          <article class="surface-card feature-card">
+            <span class="tiny-label">Deploy</span>
+            <h3>Quick GIF workflow</h3>
+            <p>Import, search, adjust, and deploy without extra noise.</p>
           </article>
-
-          <article class="surface-card section-card">
-            <span class="section-kicker">Roadmap</span>
-            <h2>Focused on practical expansion.</h2>
-            <ul class="clean-list">
-              <li>SignalRGB integration</li>
-              <li>Autoupdater</li>
-              <li>CLI support for scripted usage and automation</li>
-              <li>Loop controls for seamless GIF workflows</li>
-              <li>More modes including slideshow, web, clock, text, temperatures, and music</li>
-              <li>Broader cooler model support with community validation</li>
-            </ul>
+          <article class="surface-card feature-card">
+            <span class="tiny-label">Control</span>
+            <h3>Local presets</h3>
+            <p>Keep per-GIF zoom, pan, and rotation settings saved locally.</p>
           </article>
-        </div>
-      </section>
-
-      <section class="content-section">
-        <div class="layout-shell two-column-grid">
-          <article class="surface-card section-card">
-            <span class="section-kicker">Contributing</span>
-            <h2>Real hardware validation is the best contribution.</h2>
-            <p>
-              If you are validating a new model, the most useful details are the exact cooler
-              name, USB VID and PID, detected resolution, and whether detection, brightness,
-              recovery, and GIF deploy all work.
-            </p>
-            <div class="inline-actions">
-              <a class="button button-primary" href="https://github.com/Cesarsk/kraken-unleashed/issues">Open an issue</a>
-              <a class="button button-outline" href="https://github.com/Cesarsk/kraken-unleashed">Repository</a>
-            </div>
-          </article>
-
-          <article class="surface-card section-card" id="build">
-            <span class="section-kicker">Build from source</span>
-            <h2>Local Windows workflow.</h2>
-            <div class="code-shell">
-              <div class="code-shell-head">Repo root</div>
-              <pre><code>npm install
-npm run backend:stage
-npm start</code></pre>
-            </div>
-            <p>
-              Requirements: Windows, Node.js with <code>npm</code>, the Rust toolchain with
-              <code>cargo</code>, and a supported Kraken LCD over USB. For release packaging, use
-              Node.js <code>22.x</code> to match CI.
-            </p>
+          <article class="surface-card feature-card" id="devices">
+            <span class="tiny-label">Support</span>
+            <h3>Validated on Kraken Elite V2</h3>
+            <p>Also listed for Kraken Elite 2023 and Kraken Z3 compatibility.</p>
           </article>
         </div>
       </section>
 
       <section class="content-section content-section-tight">
-        <div class="layout-shell trust-grid">
-          <article class="surface-card section-card">
-            <span class="section-kicker">Safety notes</span>
-            <h2>Direct writes to the LCD device.</h2>
-            <ul class="clean-list">
-              <li>This app writes directly to the display hardware.</li>
-              <li>Use it at your own risk.</li>
-              <li>Keep competing control software closed while deploying.</li>
-            </ul>
-          </article>
-
-          <article class="surface-card section-card">
-            <span class="section-kicker">Trust and signing</span>
-            <h2>Signing is still pending.</h2>
+        <div class="layout-shell">
+          <article class="surface-card section-card cta-card">
+            <span class="section-kicker">Trust</span>
+            <h2>Unsigned for now, public and transparent.</h2>
             <p>
-              Free code signing has been requested through SignPath.io with a certificate from
-              SignPath Foundation. Until that is approved, released binaries remain unsigned.
+              Releases are published on GitHub, the code is public, and the privacy policy is
+              available here.
             </p>
             <div class="inline-actions">
+              <a class="button button-primary" href="https://github.com/Cesarsk/kraken-unleashed/releases">Get the app</a>
               <a class="button button-subtle" href="./privacy.html">Privacy policy</a>
-              <a class="button button-subtle" href="https://about.signpath.io/">SignPath</a>
             </div>
           </article>
         </div>

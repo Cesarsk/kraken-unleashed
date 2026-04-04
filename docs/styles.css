@@ -403,6 +403,10 @@ li {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.card-grid-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .feature-card {
   display: grid;
   gap: 12px;
@@ -484,6 +488,13 @@ li {
   background: linear-gradient(180deg, #ffffff, #f8f5ff);
 }
 
+.cta-card {
+  display: grid;
+  gap: 16px;
+  text-align: center;
+  justify-items: center;
+}
+
 .footer-note {
   margin-top: 18px;
 }
@@ -494,7 +505,8 @@ li {
 }
 
 @media (max-width: 1100px) {
-  .card-grid-four {
+  .card-grid-four,
+  .card-grid-three {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -536,7 +548,8 @@ li {
   }
 
   .spotlight-grid,
-  .card-grid-four {
+  .card-grid-four,
+  .card-grid-three {
     grid-template-columns: 1fr;
   }
 
