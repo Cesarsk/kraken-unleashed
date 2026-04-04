@@ -11,15 +11,22 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="icon" type="image/svg+xml" href="./assets/app-icon.svg" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="page-shell page-shell-narrow">
-      <header class="site-header">
+    <div class="announcement-bar">
+      <div class="layout-shell announcement-inner">
+        <span class="pill-badge">Privacy</span>
+        <p>Effective date: April 1, 2026</p>
+      </div>
+    </div>
+
+    <header class="site-header">
+      <div class="layout-shell header-inner">
         <a class="brand" href="./">
           <img src="./assets/app-icon.svg" alt="Kraken Unleashed icon" />
           <span>Kraken Unleashed</span>
@@ -28,96 +35,124 @@
           <a href="./">Home</a>
           <a href="./privacy.html" aria-current="page">Privacy</a>
         </nav>
-      </header>
+        <div class="header-actions">
+          <a class="button button-subtle" href="https://github.com/Cesarsk/kraken-unleashed">GitHub</a>
+        </div>
+      </div>
+    </header>
 
-      <main class="policy-layout">
-        <section class="policy-hero">
-          <p class="eyebrow">Privacy Policy</p>
-          <h1>Kraken Unleashed privacy summary.</h1>
-          <p class="hero-text">
-            Most app activity happens locally on the user's device. Optional in-app GIF search and
-            download features may contact a third-party GIF service.
-          </p>
-          <p class="policy-meta">Effective date: April 1, 2026</p>
-        </section>
+    <main>
+      <section class="hero-section hero-section-compact">
+        <div class="layout-shell legal-hero">
+          <div class="legal-hero-copy">
+            <span class="section-kicker">Privacy policy</span>
+            <h1>Mostly local by design.</h1>
+            <p class="hero-body">
+              Kraken Unleashed does not require an account, does not ship ads, and does not include
+              analytics or usage telemetry. Most activity happens locally on your machine.
+            </p>
+          </div>
+          <aside class="surface-card legal-summary">
+            <span class="tiny-label">Quick summary</span>
+            <ul class="clean-list">
+              <li>No user account required</li>
+              <li>No analytics or telemetry</li>
+              <li>Optional GIF search can contact a third-party service</li>
+            </ul>
+          </aside>
+        </div>
+      </section>
 
-        <section class="policy-card">
-          <h2>Summary</h2>
-          <ul class="plain-list">
-            <li>Kraken Unleashed does not require a user account.</li>
-            <li>Kraken Unleashed does not include advertising.</li>
-            <li>Kraken Unleashed does not include analytics or usage telemetry.</li>
-            <li>Most app activity happens locally on the user's device.</li>
-            <li>Optional in-app GIF search and download features may contact a third-party GIF service.</li>
-          </ul>
-        </section>
+      <section class="content-section content-section-tight">
+        <div class="layout-shell policy-grid">
+          <article class="surface-card policy-card">
+            <h2>Data processed locally</h2>
+            <ul class="clean-list">
+              <li>GIF files you import or download into the app gallery</li>
+              <li>Saved placement presets for GIFs</li>
+              <li>Application state and local settings such as startup preferences</li>
+            </ul>
+            <p>
+              This data stays on your computer so the app can function. It is not automatically
+              transmitted to the maintainer.
+            </p>
+          </article>
 
-        <section class="policy-card">
-          <h2>Data Processed Locally</h2>
-          <ul class="plain-list">
-            <li>GIF files that you choose to import or download into the app gallery</li>
-            <li>Saved placement presets for GIFs</li>
-            <li>Application state and local settings such as startup preferences</li>
-          </ul>
-        </section>
+          <article class="surface-card policy-card">
+            <h2>Third-party network requests</h2>
+            <p>
+              If the in-app GIF search feature is available in your build, search queries and
+              related requests are sent to the Klipy GIF service so the app can show results and
+              download the GIF you selected.
+            </p>
+            <ul class="clean-list">
+              <li>Your search query</li>
+              <li>Normal technical request metadata from your system and network</li>
+              <li>The request needed to download the selected GIF</li>
+            </ul>
+          </article>
 
-        <section class="policy-card">
-          <h2>Third-Party Network Requests</h2>
-          <p class="body-copy">
-            If the in-app GIF search feature is available in your build, search queries and related
-            requests are sent to the Klipy GIF service so the app can show search results and
-            download selected GIF files.
-          </p>
-          <ul class="plain-list">
-            <li>Your search query</li>
-            <li>Technical request metadata normally sent by your system and network connection</li>
-            <li>The URL request needed to download a GIF you selected</li>
-          </ul>
-        </section>
+          <article class="surface-card policy-card">
+            <h2>External links</h2>
+            <p>
+              If you click a link in the app or on this website, the destination opens in your
+              default browser and is governed by that site's own privacy practices.
+            </p>
+          </article>
 
-        <section class="policy-card">
-          <h2>Device Communication</h2>
-          <p class="body-copy">
-            Kraken Unleashed communicates locally with supported Kraken hardware over USB in order
-            to detect devices, adjust settings, recover the display state, and transfer GIF content.
-          </p>
-        </section>
+          <article class="surface-card policy-card">
+            <h2>Device communication</h2>
+            <p>
+              Kraken Unleashed communicates locally with supported Kraken hardware over USB to
+              detect devices, adjust settings, recover the display state, and transfer GIF content.
+              That USB communication does not by itself send your data to the maintainer.
+            </p>
+          </article>
 
-        <section class="policy-card">
-          <h2>Release Scanning</h2>
-          <p class="body-copy">
-            Project release artifacts may be uploaded to VirusTotal by the maintainer during the
-            release process for malware scanning. This applies to packaged release files created by
-            the maintainer and does not result from end-user runtime activity inside the app.
-          </p>
-        </section>
+          <article class="surface-card policy-card">
+            <h2>Release scanning</h2>
+            <p>
+              Release artifacts may be uploaded by the maintainer to VirusTotal during the release
+              process for malware scanning. This applies to packaged release files created by the
+              maintainer, not to end-user runtime behavior inside the app.
+            </p>
+          </article>
 
-        <section class="policy-card">
-          <h2>Data Sharing</h2>
-          <p class="body-copy">
-            Except for the third-party requests described above, Kraken Unleashed does not
-            automatically send personal data or app usage data to the maintainer or to other third
-            parties.
-          </p>
-        </section>
+          <article class="surface-card policy-card">
+            <h2>Data sharing</h2>
+            <p>
+              Except for the third-party requests described above, Kraken Unleashed does not
+              automatically send personal data or app usage data to the maintainer or to other
+              third parties.
+            </p>
+          </article>
 
-        <section class="policy-card">
-          <h2>Your Choices</h2>
-          <ul class="plain-list">
-            <li>You can avoid third-party GIF search requests by not using the in-app search feature.</li>
-            <li>You can use locally stored GIF files instead of downloading GIFs through the app.</li>
-            <li>You can review the source code of the project at the public repository to verify app behavior.</li>
-          </ul>
-        </section>
+          <article class="surface-card policy-card">
+            <h2>Your choices</h2>
+            <ul class="clean-list">
+              <li>Avoid third-party GIF search by not using the in-app search feature</li>
+              <li>Use local GIF files instead of downloading them through the app</li>
+              <li>Review the public source code to verify application behavior</li>
+            </ul>
+          </article>
 
-        <section class="policy-card">
-          <h2>Contact</h2>
-          <p class="body-copy">
+          <article class="surface-card policy-card">
+            <h2>Data retention and updates</h2>
+            <p>
+              Local files and settings remain on your device until you remove them or uninstall the
+              application. This policy may be updated when project behavior changes, with the latest
+              version published in the repository.
+            </p>
+          </article>
+        </div>
+
+        <div class="layout-shell footer-note">
+          <p>
             Project repository:
             <a href="https://github.com/Cesarsk/kraken-unleashed">github.com/Cesarsk/kraken-unleashed</a>
           </p>
-        </section>
-      </main>
-    </div>
+        </div>
+      </section>
+    </main>
   </body>
 </html>
