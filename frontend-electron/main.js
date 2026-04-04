@@ -174,12 +174,8 @@ function cleanDisplayName(name, fallback = 'Untitled GIF') {
   return normalized || fallback;
 }
 
-function getStoredSettings() {
-  const appState = readAppState();
-  return {
-    ...DEFAULT_SETTINGS,
-    ...(appState.settings || {})
-  };
+function hasStoredLaunchAtLoginPreference(appState) {
+  return Object.prototype.hasOwnProperty.call(appState?.settings || {}, 'launchAtLogin');
 }
 
 function getLoginItemEnabled(fallback = false) {
@@ -249,11 +245,24 @@ function getCurrentSettings() {
     return currentSettings;
   }
 
-  const storedSettings = getStoredSettings();
-  currentSettings = {
-    ...storedSettings,
-    launchAtLogin: getLoginItemEnabled(storedSettings.launchAtLogin)
+  const appState = readAppState();
+  const storedSettings = {
+    ...DEFAULT_SETTINGS,
+    ...(appState.settings || {})
   };
+
+  if (!hasStoredLaunchAtLoginPreference(appState)) {
+    applyLaunchAtLogin(false);
+    storedSettings.launchAtLogin = false;
+    writeAppState({
+      ...appState,
+      settings: storedSettings
+    });
+  } else {
+    storedSettings.launchAtLogin = getLoginItemEnabled(Boolean(storedSettings.launchAtLogin));
+  }
+
+  currentSettings = storedSettings;
   return currentSettings;
 }
 
