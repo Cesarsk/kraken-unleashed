@@ -245,6 +245,11 @@ li {
   gap: 24px;
 }
 
+.single-column-shell {
+  width: min(720px, 100%);
+  margin: 0 auto;
+}
+
 .hero-grid {
   grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
   align-items: center;
@@ -296,6 +301,35 @@ li {
 .hero-stack {
   display: grid;
   gap: 18px;
+}
+
+.hero-card-simple {
+  display: grid;
+  gap: 20px;
+  padding: 32px;
+  text-align: center;
+  justify-items: center;
+}
+
+.hero-logo-wrap {
+  display: grid;
+  place-items: center;
+  width: 132px;
+  height: 132px;
+  border-radius: 32px;
+  background: linear-gradient(180deg, #f8f6ff 0%, #ffffff 100%);
+  border: 1px solid rgba(113, 50, 245, 0.12);
+}
+
+.hero-logo {
+  width: 78px;
+  height: 78px;
+}
+
+.hero-meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
 }
 
 .surface-card {
@@ -558,7 +592,8 @@ li {
   .policy-card,
   .feature-card,
   .compact-card,
-  .legal-summary {
+  .legal-summary,
+  .hero-card-simple {
     padding: 20px;
   }
 
