@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kraken Unleashed</title>
-    <link rel="icon" type="image/png" href="assets/app-icon.png" />
+    <link rel="icon" type="image/png" href="../assets/app_icon.png" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -307,6 +307,56 @@
         </div>
         <p id="gallery-modal-meta" class="modal-copy">Browse every GIF in your local app gallery.</p>
         <div id="gallery-modal-grid" class="gallery-modal-grid"></div>
+      </div>
+    </div>
+
+    <div id="first-run-modal" class="modal-shell hidden" aria-hidden="true">
+      <div class="modal-panel first-run-panel">
+        <div class="modal-header">
+          <div>
+            <p class="section-label">First Start</p>
+            <h2>Startup Preferences</h2>
+          </div>
+        </div>
+        <p class="modal-copy">
+          Kraken Unleashed runs as a single app instance. Choose how you want it to behave when you close it and when Windows starts.
+        </p>
+        <div class="first-run-section">
+          <p class="first-run-label">When clicking X</p>
+          <label class="settings-toggle first-run-choice">
+            <div class="settings-copy">
+              <strong>Keep running in tray</strong>
+              <span>Close the window but keep the app alive in the tray.</span>
+            </div>
+            <input id="first-run-close-to-tray" type="radio" name="first-run-close-behavior" checked />
+          </label>
+          <label class="settings-toggle first-run-choice">
+            <div class="settings-copy">
+              <strong>Fully close the app</strong>
+              <span>Exit the app completely when the window closes.</span>
+            </div>
+            <input id="first-run-close-app" type="radio" name="first-run-close-behavior" />
+          </label>
+        </div>
+        <div class="settings-list first-run-settings-list">
+          <label class="settings-toggle">
+            <div class="settings-copy">
+              <strong>Launch on Windows startup</strong>
+              <span>Start Kraken Unleashed automatically when you sign in.</span>
+            </div>
+            <input id="first-run-launch-at-login" type="checkbox" />
+          </label>
+          <label class="settings-toggle">
+            <div class="settings-copy">
+              <strong>Restore last GIF after startup</strong>
+              <span>When launched at login, detect the Kraken and redeploy the last GIF automatically.</span>
+            </div>
+            <input id="first-run-restore-last-gif" type="checkbox" />
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button id="first-run-continue-button" class="primary-button wide-button">Save Preferences</button>
+        </div>
       </div>
     </div>
 

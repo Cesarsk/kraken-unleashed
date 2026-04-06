@@ -19,11 +19,11 @@ const GALLERY_METADATA_PATH = path.join(ELECTRON_DATA_DIR, 'gallery-metadata.jso
 const PRESETS_PATH = path.join(ELECTRON_DATA_DIR, 'gif-presets.json');
 const APP_STATE_PATH = path.join(ELECTRON_DATA_DIR, 'app-state.json');
 const WINDOW_ICON_PATH = path.join(
-  __dirname,
+  SOURCE_ROOT,
   'assets',
-  process.platform === 'win32' ? 'app-icon.ico' : 'app-icon.png'
+  process.platform === 'win32' ? 'app_icon.ico' : 'app_icon.png'
 );
-const FALLBACK_ICON_PATH = path.join(__dirname, 'assets', 'app-icon.png');
+const FALLBACK_ICON_PATH = path.join(SOURCE_ROOT, 'assets', 'app_icon.png');
 const GALLERY_PAGE_SIZE = 6;
 const SEARCH_PAGE_SIZE = 4;
 const DEVICE_MAX_GIF_BYTES = 20 * 1024 * 1024;
@@ -40,11 +40,16 @@ const STARTUP_ARG = 'startup-launch';
 const LEGACY_STARTUP_ARG = '--startup';
 const APP_USER_MODEL_ID = 'com.cesarsk.krakenunleashed';
 const STARTUP_SHORTCUT_NAME = 'Kraken Unleashed.lnk';
+const STARTUP_RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
+const LEGACY_STARTUP_VALUE_NAMES = [
+  'electron.app.Electron'
+];
 const DEFAULT_SETTINGS = {
   launchAtLogin: false,
   minimizeToTray: true,
   startHiddenOnLaunch: true,
-  restoreLastGifOnStartup: false
+  restoreLastGifOnStartup: false,
+  onboardingComplete: false
 };
 let bridgeQueue = Promise.resolve();
 let mainWindow = null;
@@ -53,6 +58,7 @@ let selectedBridge = null;
 let isQuitting = false;
 let currentSettings = null;
 const DEPLOY_PROGRESS_EVENT = 'app:deploy-progress';
+const START_HIDDEN_ON_BOOT = wasLaunchedOnStartup() && getStoredSettings().startHiddenOnLaunch;
 
 function getProcessArgs() {
   return process.argv.slice(1);
@@ -230,9 +236,20 @@ function findGalleryItemBySourceUrl(sourceUrl) {
 
 function getStoredSettings() {
   const appState = readAppState();
+  const storedSettings = appState.settings || {};
+  const hasLegacySettings = [
+    'launchAtLogin',
+    'minimizeToTray',
+    'startHiddenOnLaunch',
+    'restoreLastGifOnStartup'
+  ].some((key) => Object.prototype.hasOwnProperty.call(storedSettings, key));
+
   return {
     ...DEFAULT_SETTINGS,
-    ...(appState.settings || {})
+    ...(hasLegacySettings && !Object.prototype.hasOwnProperty.call(storedSettings, 'onboardingComplete')
+      ? { onboardingComplete: true }
+      : {}),
+    ...storedSettings
   };
 }
 
@@ -242,6 +259,62 @@ function getLoginItemEnabled(fallback = false) {
   }
 
   return fs.existsSync(getStartupShortcutPath());
+}
+
+function readWindowsRunValue(valueName) {
+  try {
+    return execFileSync('reg', [
+      'query',
+      STARTUP_RUN_KEY,
+      '/v',
+      valueName
+    ], {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8'
+    });
+  } catch {
+    return '';
+  }
+}
+
+function deleteWindowsRunValue(valueName) {
+  try {
+    execFileSync('reg', [
+      'delete',
+      STARTUP_RUN_KEY,
+      '/v',
+      valueName,
+      '/f'
+    ], {
+      windowsHide: true,
+      stdio: 'ignore'
+    });
+  } catch {}
+}
+
+function cleanupLegacyStartupEntries() {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  for (const valueName of LEGACY_STARTUP_VALUE_NAMES) {
+    const output = readWindowsRunValue(valueName);
+    if (!output) {
+      continue;
+    }
+
+    const normalized = output.toLowerCase();
+    const matchesThisApp = normalized.includes('kraken-unleashed')
+      || normalized.includes(STARTUP_ARG.toLowerCase())
+      || normalized.includes(LEGACY_STARTUP_ARG.toLowerCase());
+
+    if (!matchesThisApp) {
+      continue;
+    }
+
+    deleteWindowsRunValue(valueName);
+  }
 }
 
 function getStartupShortcutPath() {
@@ -273,7 +346,9 @@ function writeStartupShortcut(shortcutPath) {
   const targetPath = process.execPath;
   const argumentsValue = getStartupShortcutArgs();
   const workingDirectory = app.isPackaged ? path.dirname(process.execPath) : SOURCE_ROOT;
-  const iconLocation = `${WINDOW_ICON_PATH},0`;
+  const iconLocation = app.isPackaged
+    ? `${targetPath},0`
+    : `${WINDOW_ICON_PATH},0`;
   const script = [
     '$WshShell = New-Object -ComObject WScript.Shell',
     `$Shortcut = $WshShell.CreateShortcut(${quoteForPowerShell(shortcutPath)})`,
@@ -303,6 +378,7 @@ function getCurrentSettings() {
     return currentSettings;
   }
 
+  cleanupLegacyStartupEntries();
   const storedSettings = getStoredSettings();
   currentSettings = {
     ...storedSettings,
@@ -324,6 +400,7 @@ function applyLaunchAtLogin(enabled) {
     return;
   }
 
+  cleanupLegacyStartupEntries();
   const startupShortcutPath = getStartupShortcutPath();
   if (!enabled) {
     try {
@@ -345,6 +422,7 @@ function refreshStartupShortcutIfNeeded() {
   if (process.platform !== 'win32') {
     return;
   }
+  cleanupLegacyStartupEntries();
   const settings = getCurrentSettings();
   if (!settings.launchAtLogin) {
     return;
@@ -375,8 +453,7 @@ function updateSettings(patch) {
 }
 
 function shouldStartHidden() {
-  const settings = getCurrentSettings();
-  return wasLaunchedOnStartup() && settings.startHiddenOnLaunch;
+  return START_HIDDEN_ON_BOOT;
 }
 
 function assetExists(assetPath) {
@@ -808,10 +885,11 @@ function createWindow() {
     height: 760,
     minWidth: 1020,
     minHeight: 680,
-    show: !shouldStartHidden(),
+    show: false,
     skipTaskbar: shouldStartHidden(),
     icon: resolveWindowIcon(),
     backgroundColor: '#17181d',
+    paintWhenInitiallyHidden: false,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -849,6 +927,17 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  mainWindow.once('ready-to-show', () => {
+    if (shouldStartHidden()) {
+      hideMainWindow();
+      refreshTrayMenu();
+      return;
+    }
+
+    mainWindow.setSkipTaskbar(false);
+    mainWindow.show();
+    refreshTrayMenu();
+  });
   mainWindow.on('show', refreshTrayMenu);
   mainWindow.on('hide', refreshTrayMenu);
   return mainWindow;
@@ -951,6 +1040,7 @@ app.on('second-instance', (_event, argv) => {
   if (launchedFromStartup && getCurrentSettings().startHiddenOnLaunch) {
     return;
   }
+  app.focus();
   showMainWindow();
 });
 
@@ -960,7 +1050,11 @@ app.whenReady().then(() => {
   createTray();
   createWindow();
   app.on('activate', () => {
-    showMainWindow();
+    if (process.platform === 'darwin') {
+      showMainWindow();
+    } else if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow();
+    }
   });
 }).catch((error) => {
   console.error('Failed to initialize Kraken Unleashed:', error);
