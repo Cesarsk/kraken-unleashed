@@ -1,6 +1,14 @@
 node_modules/
 dist/
 dist-resources/
+dist-*-rebuild/
+.git-pull-backups/
+prepared-gifs/
+*-worktree/
+
+libusb-1.0.dll
+backend-rust/libusb-1.0.dll
+backend-rust/bin/libusb-1.0.dll
 
 backend-rust/target/
 backend-rust/target-runtime/

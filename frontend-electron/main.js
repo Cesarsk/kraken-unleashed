@@ -40,11 +40,16 @@ const STARTUP_ARG = 'startup-launch';
 const LEGACY_STARTUP_ARG = '--startup';
 const APP_USER_MODEL_ID = 'com.cesarsk.krakenunleashed';
 const STARTUP_SHORTCUT_NAME = 'Kraken Unleashed.lnk';
+const STARTUP_RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
+const LEGACY_STARTUP_VALUE_NAMES = [
+  'electron.app.Electron'
+];
 const DEFAULT_SETTINGS = {
   launchAtLogin: false,
   minimizeToTray: true,
   startHiddenOnLaunch: true,
-  restoreLastGifOnStartup: false
+  restoreLastGifOnStartup: false,
+  onboardingComplete: false
 };
 let bridgeQueue = Promise.resolve();
 let mainWindow = null;
@@ -230,9 +235,20 @@ function findGalleryItemBySourceUrl(sourceUrl) {
 
 function getStoredSettings() {
   const appState = readAppState();
+  const storedSettings = appState.settings || {};
+  const hasLegacySettings = [
+    'launchAtLogin',
+    'minimizeToTray',
+    'startHiddenOnLaunch',
+    'restoreLastGifOnStartup'
+  ].some((key) => Object.prototype.hasOwnProperty.call(storedSettings, key));
+
   return {
     ...DEFAULT_SETTINGS,
-    ...(appState.settings || {})
+    ...(hasLegacySettings && !Object.prototype.hasOwnProperty.call(storedSettings, 'onboardingComplete')
+      ? { onboardingComplete: true }
+      : {}),
+    ...storedSettings
   };
 }
 
@@ -242,6 +258,62 @@ function getLoginItemEnabled(fallback = false) {
   }
 
   return fs.existsSync(getStartupShortcutPath());
+}
+
+function readWindowsRunValue(valueName) {
+  try {
+    return execFileSync('reg', [
+      'query',
+      STARTUP_RUN_KEY,
+      '/v',
+      valueName
+    ], {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8'
+    });
+  } catch {
+    return '';
+  }
+}
+
+function deleteWindowsRunValue(valueName) {
+  try {
+    execFileSync('reg', [
+      'delete',
+      STARTUP_RUN_KEY,
+      '/v',
+      valueName,
+      '/f'
+    ], {
+      windowsHide: true,
+      stdio: 'ignore'
+    });
+  } catch {}
+}
+
+function cleanupLegacyStartupEntries() {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  for (const valueName of LEGACY_STARTUP_VALUE_NAMES) {
+    const output = readWindowsRunValue(valueName);
+    if (!output) {
+      continue;
+    }
+
+    const normalized = output.toLowerCase();
+    const matchesThisApp = normalized.includes('kraken-unleashed')
+      || normalized.includes(STARTUP_ARG.toLowerCase())
+      || normalized.includes(LEGACY_STARTUP_ARG.toLowerCase());
+
+    if (!matchesThisApp) {
+      continue;
+    }
+
+    deleteWindowsRunValue(valueName);
+  }
 }
 
 function getStartupShortcutPath() {
@@ -303,6 +375,7 @@ function getCurrentSettings() {
     return currentSettings;
   }
 
+  cleanupLegacyStartupEntries();
   const storedSettings = getStoredSettings();
   currentSettings = {
     ...storedSettings,
@@ -324,6 +397,7 @@ function applyLaunchAtLogin(enabled) {
     return;
   }
 
+  cleanupLegacyStartupEntries();
   const startupShortcutPath = getStartupShortcutPath();
   if (!enabled) {
     try {
@@ -345,6 +419,7 @@ function refreshStartupShortcutIfNeeded() {
   if (process.platform !== 'win32') {
     return;
   }
+  cleanupLegacyStartupEntries();
   const settings = getCurrentSettings();
   if (!settings.launchAtLogin) {
     return;
@@ -951,6 +1026,7 @@ app.on('second-instance', (_event, argv) => {
   if (launchedFromStartup && getCurrentSettings().startHiddenOnLaunch) {
     return;
   }
+  app.focus();
   showMainWindow();
 });
 

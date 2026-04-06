@@ -1065,6 +1065,10 @@ select {
   width: min(1080px, 100%);
 }
 
+.first-run-panel {
+  width: min(720px, 100%);
+}
+
 .modal-header,
 .modal-actions {
   display: flex;
@@ -1171,6 +1175,28 @@ select {
   display: grid;
   gap: 14px;
   margin-top: 18px;
+}
+
+.first-run-settings-list {
+  margin-top: 0;
+}
+
+.first-run-section {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.first-run-label {
+  margin: 0;
+  color: var(--accent-soft);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.first-run-choice {
+  min-height: 88px;
 }
 
 .settings-toggle {

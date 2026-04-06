@@ -8,7 +8,8 @@ const DIST_RESOURCES_DIR = path.join(ROOT_DIR, 'dist-resources', 'backend');
 const BACKEND_BINARY_NAME = process.platform === 'win32'
   ? 'kraken-unleashed-backend.exe'
   : 'kraken-unleashed-backend';
-const BACKEND_BINARY_PATH = path.join(BACKEND_DIR, 'target', 'release', BACKEND_BINARY_NAME);
+const BACKEND_PROFILE = process.env.KRAKEN_PACKAGE_BACKEND_PROFILE || 'debug';
+const BACKEND_BINARY_PATH = path.join(BACKEND_DIR, 'target', BACKEND_PROFILE, BACKEND_BINARY_NAME);
 
 function run(command, args) {
   const result = spawnSync(command, args, {
@@ -39,6 +40,7 @@ function copyIfPresent(sourcePath, targetPath) {
 function resolveLibusbPath() {
   const candidates = [
     process.env.KRAKEN_LIBUSB_DLL,
+    process.env.WINDIR ? path.join(process.env.WINDIR, 'System32', 'libusb-1.0.dll') : null,
     path.join(ROOT_DIR, 'libusb-1.0.dll'),
     path.join(BACKEND_DIR, 'libusb-1.0.dll'),
     path.join(BACKEND_DIR, 'bin', 'libusb-1.0.dll')
@@ -47,10 +49,15 @@ function resolveLibusbPath() {
   return candidates.find((candidate) => fs.existsSync(candidate)) || null;
 }
 
-run('cargo', ['build', '--release', '--manifest-path', path.join('backend-rust', 'Cargo.toml')]);
+const cargoArgs = ['build', '--manifest-path', path.join('backend-rust', 'Cargo.toml')];
+if (BACKEND_PROFILE !== 'debug') {
+  cargoArgs.splice(1, 0, '--profile', BACKEND_PROFILE);
+}
+
+run('cargo', cargoArgs);
 
 if (!fs.existsSync(BACKEND_BINARY_PATH)) {
-  console.error(`Missing Rust backend release binary at ${BACKEND_BINARY_PATH}`);
+  console.error(`Missing Rust backend ${BACKEND_PROFILE} binary at ${BACKEND_BINARY_PATH}`);
   process.exit(1);
 }
 

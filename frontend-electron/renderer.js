@@ -32,7 +32,8 @@ const state = {
   appMeta: null,
   settings: null,
   searchPreviewItem: null,
-  galleryModalSelectedPath: null
+  galleryModalSelectedPath: null,
+  firstRunSaving: false
 };
 
 const compatibilityCatalog = [
@@ -125,7 +126,13 @@ const els = {
   settingLaunchAtLogin: document.getElementById('setting-launch-at-login'),
   settingMinimizeToTray: document.getElementById('setting-minimize-to-tray'),
   settingStartHidden: document.getElementById('setting-start-hidden'),
-  settingRestoreLastGif: document.getElementById('setting-restore-last-gif')
+  settingRestoreLastGif: document.getElementById('setting-restore-last-gif'),
+  firstRunModal: document.getElementById('first-run-modal'),
+  firstRunCloseToTray: document.getElementById('first-run-close-to-tray'),
+  firstRunCloseApp: document.getElementById('first-run-close-app'),
+  firstRunLaunchAtLogin: document.getElementById('first-run-launch-at-login'),
+  firstRunRestoreLastGif: document.getElementById('first-run-restore-last-gif'),
+  firstRunContinueButton: document.getElementById('first-run-continue-button')
 };
 
 function toFileUrl(filePath) {
@@ -293,12 +300,66 @@ function closeSettings() {
   els.settingsModal.setAttribute('aria-hidden', 'true');
 }
 
+function syncFirstRunUI() {
+  const settings = state.settings || {};
+  const minimizeToTray = settings.minimizeToTray !== false;
+  els.firstRunCloseToTray.checked = minimizeToTray;
+  els.firstRunCloseApp.checked = !minimizeToTray;
+  els.firstRunLaunchAtLogin.checked = Boolean(settings.launchAtLogin);
+  els.firstRunRestoreLastGif.checked = Boolean(settings.restoreLastGifOnStartup);
+  els.firstRunRestoreLastGif.disabled = !els.firstRunLaunchAtLogin.checked;
+  if (els.firstRunRestoreLastGif.disabled) {
+    els.firstRunRestoreLastGif.checked = false;
+  }
+  els.firstRunContinueButton.disabled = state.firstRunSaving;
+}
+
+function openFirstRunModal() {
+  syncFirstRunUI();
+  els.firstRunModal.classList.remove('hidden');
+  els.firstRunModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeFirstRunModal() {
+  els.firstRunModal.classList.add('hidden');
+  els.firstRunModal.setAttribute('aria-hidden', 'true');
+}
+
 async function updateSetting(patch, successMessage) {
   state.settings = await window.krakenApp.updateSettings(patch);
   syncSettingsUI();
+  syncFirstRunUI();
   if (successMessage) {
     setStatus(successMessage);
     showToast(successMessage);
+  }
+}
+
+async function completeFirstRunSetup() {
+  if (state.firstRunSaving) {
+    return;
+  }
+
+  state.firstRunSaving = true;
+  syncFirstRunUI();
+
+  const minimizeToTray = els.firstRunCloseToTray.checked;
+  const launchAtLogin = els.firstRunLaunchAtLogin.checked;
+  const restoreLastGifOnStartup = launchAtLogin && els.firstRunRestoreLastGif.checked;
+  const startHiddenOnLaunch = launchAtLogin && minimizeToTray;
+
+  try {
+    await updateSetting({
+      minimizeToTray,
+      launchAtLogin,
+      startHiddenOnLaunch,
+      restoreLastGifOnStartup,
+      onboardingComplete: true
+    }, 'Startup preferences saved.');
+    closeFirstRunModal();
+  } finally {
+    state.firstRunSaving = false;
+    syncFirstRunUI();
   }
 }
 
@@ -1069,6 +1130,10 @@ async function boot() {
   state.settings = await window.krakenApp.getSettings();
   els.appVersion.textContent = `v${state.appMeta.version}`;
   syncSettingsUI();
+  syncFirstRunUI();
+  if (!state.settings?.onboardingComplete) {
+    openFirstRunModal();
+  }
   await detectDevice();
   await refreshGallery();
   await restoreLastDeployedAsset();
@@ -1244,6 +1309,16 @@ els.settingRestoreLastGif.addEventListener('change', async (event) => {
     event.target.checked = !event.target.checked;
     showToast(error.message, 'error');
   }
+});
+els.firstRunLaunchAtLogin.addEventListener('change', () => {
+  syncFirstRunUI();
+});
+els.firstRunContinueButton.addEventListener('click', () => {
+  completeFirstRunSetup().catch((error) => {
+    state.firstRunSaving = false;
+    syncFirstRunUI();
+    showToast(error.message, 'error');
+  });
 });
 
 els.brightnessSlider.addEventListener('input', async (event) => {
