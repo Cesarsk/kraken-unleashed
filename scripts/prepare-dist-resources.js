@@ -4,6 +4,7 @@ const { spawnSync } = require('child_process');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const BACKEND_DIR = path.join(ROOT_DIR, 'backend-rust');
+const DIST_OUTPUT_DIR = path.join(ROOT_DIR, 'dist');
 const DIST_RESOURCES_DIR = path.join(ROOT_DIR, '.dist-resources', 'backend');
 const SOURCE_ICON_PNG_PATH = path.join(ROOT_DIR, 'assets', 'app_icon.png');
 const WINDOWS_ICON_PNG_PATH = SOURCE_ICON_PNG_PATH;
@@ -27,7 +28,12 @@ function run(command, args) {
 }
 
 function ensureCleanDir(dirPath) {
-  fs.rmSync(dirPath, { recursive: true, force: true });
+  fs.rmSync(dirPath, {
+    recursive: true,
+    force: true,
+    maxRetries: 6,
+    retryDelay: 250
+  });
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
@@ -106,6 +112,13 @@ if (!fs.existsSync(BACKEND_BINARY_PATH)) {
   process.exit(1);
 }
 
+// A stale dist/win-unpacked can produce Windows "Name clash" paths and break NSIS packaging.
+fs.rmSync(DIST_OUTPUT_DIR, {
+  recursive: true,
+  force: true,
+  maxRetries: 6,
+  retryDelay: 250
+});
 ensureCleanDir(DIST_RESOURCES_DIR);
 fs.copyFileSync(BACKEND_BINARY_PATH, path.join(DIST_RESOURCES_DIR, BACKEND_BINARY_NAME));
 

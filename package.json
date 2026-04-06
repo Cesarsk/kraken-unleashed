@@ -1,6 +1,6 @@
 {
   "name": "kraken-unleashed",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "private": true,
   "description": "Direct GIF deployment for supported Kraken LCD coolers from a native desktop app.",
   "author": "Cesarsk",
@@ -71,5 +71,8 @@
       "uninstallerIcon": "assets/app_icon.ico",
       "installerHeaderIcon": "assets/app_icon.ico"
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
   }
 }

@@ -3,6 +3,10 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync, spawn } = require('child_process');
 const crypto = require('crypto');
+let autoUpdater = null;
+try {
+  ({ autoUpdater } = require('electron-updater'));
+} catch {}
 let appConfig = {};
 try {
   appConfig = require('./app-config');
@@ -58,7 +62,11 @@ let selectedBridge = null;
 let isQuitting = false;
 let currentSettings = null;
 const DEPLOY_PROGRESS_EVENT = 'app:deploy-progress';
+const UPDATE_STATE_EVENT = 'app:update-state';
 const START_HIDDEN_ON_BOOT = wasLaunchedOnStartup() && getStoredSettings().startHiddenOnLaunch;
+let updateState = null;
+let updateCheckPromise = null;
+let updateDownloadPromise = null;
 
 function getProcessArgs() {
   return process.argv.slice(1);
@@ -67,6 +75,210 @@ function getProcessArgs() {
 function wasLaunchedOnStartup() {
   const args = getProcessArgs();
   return args.includes(STARTUP_ARG) || args.includes(LEGACY_STARTUP_ARG);
+}
+
+function isUpdaterSupported() {
+  return Boolean(autoUpdater) && process.platform === 'win32' && app.isPackaged;
+}
+
+function createDefaultUpdateState() {
+  const supported = isUpdaterSupported();
+  return {
+    supported,
+    checking: false,
+    downloading: false,
+    downloaded: false,
+    updateAvailable: false,
+    currentVersion: app.getVersion(),
+    availableVersion: null,
+    progressPercent: 0,
+    releaseDate: null,
+    releaseName: null,
+    message: supported
+      ? 'Automatic updates are available for installed builds.'
+      : 'Automatic updates are available only in installed builds.'
+  };
+}
+
+function ensureUpdateState() {
+  if (!updateState) {
+    updateState = createDefaultUpdateState();
+  }
+  return updateState;
+}
+
+function emitUpdateState() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(UPDATE_STATE_EVENT, ensureUpdateState());
+  }
+}
+
+function setUpdateState(patch) {
+  updateState = {
+    ...ensureUpdateState(),
+    ...patch
+  };
+  emitUpdateState();
+  return updateState;
+}
+
+function describeUpdateError(error) {
+  const rawMessage = String(error?.message || error || 'Update check failed.');
+  const normalized = rawMessage.toLowerCase();
+
+  if (normalized.includes('net::err_internet_disconnected') || normalized.includes('unable to verify the first certificate')) {
+    return 'Could not check for updates right now. Check your internet connection and try again.';
+  }
+
+  if (normalized.includes('404') || normalized.includes('cannot find channel')) {
+    return 'No published update feed is available yet for this build.';
+  }
+
+  return rawMessage;
+}
+
+function initAutoUpdater() {
+  ensureUpdateState();
+  if (!isUpdaterSupported()) {
+    setUpdateState({
+      supported: false,
+      message: 'Automatic updates are available only in installed builds.'
+    });
+    return;
+  }
+
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.allowPrerelease = app.getVersion().includes('-');
+
+  autoUpdater.on('checking-for-update', () => {
+    setUpdateState({
+      checking: true,
+      downloading: false,
+      message: 'Checking for updates...',
+      progressPercent: 0
+    });
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    setUpdateState({
+      checking: false,
+      downloading: false,
+      downloaded: false,
+      updateAvailable: true,
+      availableVersion: info?.version || null,
+      releaseDate: info?.releaseDate || null,
+      releaseName: info?.releaseName || null,
+      progressPercent: 0,
+      message: info?.version
+        ? `Version ${info.version} is available.`
+        : 'A new version is available.'
+    });
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    setUpdateState({
+      checking: false,
+      downloading: false,
+      downloaded: false,
+      updateAvailable: false,
+      availableVersion: null,
+      releaseDate: null,
+      releaseName: null,
+      progressPercent: 0,
+      message: 'You are already on the latest version.'
+    });
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    setUpdateState({
+      checking: false,
+      downloading: true,
+      downloaded: false,
+      progressPercent: Math.round(progress?.percent || 0),
+      message: `Downloading update... ${Math.round(progress?.percent || 0)}%`
+    });
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    setUpdateState({
+      checking: false,
+      downloading: false,
+      downloaded: true,
+      updateAvailable: true,
+      availableVersion: info?.version || ensureUpdateState().availableVersion,
+      releaseDate: info?.releaseDate || ensureUpdateState().releaseDate,
+      releaseName: info?.releaseName || ensureUpdateState().releaseName,
+      progressPercent: 100,
+      message: 'Update downloaded. Restart the app to install it.'
+    });
+  });
+
+  autoUpdater.on('error', (error) => {
+    updateCheckPromise = null;
+    updateDownloadPromise = null;
+    setUpdateState({
+      checking: false,
+      downloading: false,
+      progressPercent: 0,
+      message: describeUpdateError(error)
+    });
+  });
+
+  setTimeout(() => {
+    checkForAppUpdates().catch(() => {});
+  }, 3500);
+}
+
+async function checkForAppUpdates() {
+  ensureUpdateState();
+  if (!isUpdaterSupported()) {
+    return setUpdateState({
+      supported: false,
+      message: 'Automatic updates are available only in installed builds.'
+    });
+  }
+
+  if (updateCheckPromise) {
+    return updateCheckPromise;
+  }
+
+  updateCheckPromise = autoUpdater.checkForUpdates()
+    .then(() => ensureUpdateState())
+    .finally(() => {
+      updateCheckPromise = null;
+    });
+
+  return updateCheckPromise;
+}
+
+async function downloadAppUpdate() {
+  ensureUpdateState();
+  if (!isUpdaterSupported()) {
+    throw new Error('Automatic updates are available only in installed builds.');
+  }
+
+  if (updateDownloadPromise) {
+    return updateDownloadPromise;
+  }
+
+  updateDownloadPromise = autoUpdater.downloadUpdate()
+    .then(() => ensureUpdateState())
+    .finally(() => {
+      updateDownloadPromise = null;
+    });
+
+  return updateDownloadPromise;
+}
+
+function installDownloadedUpdate() {
+  if (!isUpdaterSupported()) {
+    throw new Error('Automatic updates are available only in installed builds.');
+  }
+
+  isQuitting = true;
+  autoUpdater.quitAndInstall(false, true);
+  return { installing: true };
 }
 
 function ensureDir(dirPath) {
@@ -953,6 +1165,10 @@ ipcMain.handle('app:get-app-meta', async () => ({
 }));
 ipcMain.handle('app:get-settings', async () => getCurrentSettings());
 ipcMain.handle('app:update-settings', async (_event, patch) => updateSettings(patch || {}));
+ipcMain.handle('app:get-update-state', async () => ensureUpdateState());
+ipcMain.handle('app:check-for-updates', async () => checkForAppUpdates());
+ipcMain.handle('app:download-update', async () => downloadAppUpdate());
+ipcMain.handle('app:install-update', async () => installDownloadedUpdate());
 ipcMain.handle('app:set-brightness', async (_event, value) =>
   enqueueBridge(['brightness', String(value)])
 );
@@ -1046,9 +1262,11 @@ app.on('second-instance', (_event, argv) => {
 
 app.whenReady().then(() => {
   getCurrentSettings();
+  ensureUpdateState();
   refreshStartupShortcutIfNeeded();
   createTray();
   createWindow();
+  initAutoUpdater();
   app.on('activate', () => {
     if (process.platform === 'darwin') {
       showMainWindow();
@@ -1059,6 +1277,10 @@ app.whenReady().then(() => {
 }).catch((error) => {
   console.error('Failed to initialize Kraken Unleashed:', error);
   app.quit();
+});
+
+app.on('before-quit-for-update', () => {
+  isQuitting = true;
 });
 
 app.on('window-all-closed', () => {
