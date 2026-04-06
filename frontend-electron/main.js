@@ -182,7 +182,7 @@ function initAutoUpdater() {
       downloading: false,
       downloaded: false,
       updateAvailable: false,
-      availableVersion: null,
+      availableVersion: app.getVersion(),
       releaseDate: null,
       releaseName: null,
       progressPercent: 0,
