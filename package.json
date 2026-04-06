@@ -1,6 +1,6 @@
 {
   "name": "kraken-unleashed",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "description": "Direct GIF deployment for supported Kraken LCD coolers from a native desktop app.",
   "author": "Cesarsk",
@@ -29,12 +29,13 @@
     "asar": true,
     "npmRebuild": false,
     "files": [
+      "assets/**/*",
       "frontend-electron/**/*",
       "package.json"
     ],
     "extraResources": [
       {
-        "from": "dist-resources/backend",
+        "from": ".dist-resources/backend",
         "to": "backend",
         "filter": [
           "**/*"
@@ -45,8 +46,8 @@
       "output": "dist"
     },
     "win": {
-      "icon": "frontend-electron/assets/app-icon.ico",
-      "signAndEditExecutable": false,
+      "icon": "assets/app_icon.ico",
+      "signAndEditExecutable": true,
       "target": [
         {
           "target": "nsis",
@@ -65,7 +66,10 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/app_icon.ico",
+      "uninstallerIcon": "assets/app_icon.ico",
+      "installerHeaderIcon": "assets/app_icon.ico"
     }
   }
 }

@@ -1,6 +1,6 @@
 node_modules/
 dist/
-dist-resources/
+.dist-resources/
 dist-*-rebuild/
 .git-pull-backups/
 prepared-gifs/

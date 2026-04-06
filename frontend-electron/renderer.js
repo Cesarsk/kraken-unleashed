@@ -300,13 +300,16 @@ function closeSettings() {
   els.settingsModal.setAttribute('aria-hidden', 'true');
 }
 
-function syncFirstRunUI() {
-  const settings = state.settings || {};
-  const minimizeToTray = settings.minimizeToTray !== false;
-  els.firstRunCloseToTray.checked = minimizeToTray;
-  els.firstRunCloseApp.checked = !minimizeToTray;
-  els.firstRunLaunchAtLogin.checked = Boolean(settings.launchAtLogin);
-  els.firstRunRestoreLastGif.checked = Boolean(settings.restoreLastGifOnStartup);
+function syncFirstRunUI(fromState = true) {
+  if (fromState) {
+    const settings = state.settings || {};
+    const minimizeToTray = settings.minimizeToTray !== false;
+    els.firstRunCloseToTray.checked = minimizeToTray;
+    els.firstRunCloseApp.checked = !minimizeToTray;
+    els.firstRunLaunchAtLogin.checked = Boolean(settings.launchAtLogin);
+    els.firstRunRestoreLastGif.checked = Boolean(settings.restoreLastGifOnStartup);
+  }
+
   els.firstRunRestoreLastGif.disabled = !els.firstRunLaunchAtLogin.checked;
   if (els.firstRunRestoreLastGif.disabled) {
     els.firstRunRestoreLastGif.checked = false;
@@ -341,7 +344,8 @@ async function completeFirstRunSetup() {
   }
 
   state.firstRunSaving = true;
-  syncFirstRunUI();
+  // Preserve the user's current first-run selections while the save is in progress.
+  syncFirstRunUI(false);
 
   const minimizeToTray = els.firstRunCloseToTray.checked;
   const launchAtLogin = els.firstRunLaunchAtLogin.checked;
@@ -1311,7 +1315,7 @@ els.settingRestoreLastGif.addEventListener('change', async (event) => {
   }
 });
 els.firstRunLaunchAtLogin.addEventListener('change', () => {
-  syncFirstRunUI();
+  syncFirstRunUI(false);
 });
 els.firstRunContinueButton.addEventListener('click', () => {
   completeFirstRunSetup().catch((error) => {
