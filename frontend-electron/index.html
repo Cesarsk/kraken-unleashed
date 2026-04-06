@@ -277,8 +277,8 @@
             <p id="update-status-copy" class="modal-copy">Check for new versions published on GitHub Releases.</p>
           </div>
           <div class="settings-update-meta">
-            <span id="update-current-version" class="settings-update-badge">Current v1.0.6</span>
-            <span id="update-available-version" class="settings-update-badge hidden">Available</span>
+            <span id="update-current-version" class="settings-update-badge">Current version</span>
+            <span id="update-available-version" class="settings-update-badge hidden"></span>
           </div>
           <div class="settings-update-actions">
             <button id="check-updates-button" class="ghost-button compact-button" type="button">Check For Updates</button>
@@ -372,6 +372,34 @@
         </div>
         <div class="modal-actions">
           <button id="first-run-continue-button" class="primary-button wide-button">Save Preferences</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="support-modal" class="modal-shell hidden" aria-hidden="true">
+      <div class="modal-panel support-modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="section-label">Support</p>
+            <h2>Support Kraken Unleashed</h2>
+          </div>
+          <button id="close-support-button" class="icon-button">x</button>
+        </div>
+        <div class="support-modal-copy">
+          <p><strong>Thanks for using Kraken Unleashed.</strong></p>
+          <p class="modal-copy">If the app has been useful, consider supporting ongoing development.</p>
+          <p class="modal-copy">Your support helps keep the project shipping.</p>
+        </div>
+        <label class="settings-toggle support-optout-toggle">
+          <div class="settings-copy">
+            <strong>Don't show this again</strong>
+            <span>Hide this support prompt permanently.</span>
+          </div>
+          <input id="support-dont-show-again" type="checkbox" />
+        </label>
+        <div class="modal-actions">
+          <button id="support-no-button" class="secondary-button wide-button">Not now</button>
+          <a id="support-yes-button" class="primary-button wide-button support-link-button" href="https://github.com/sponsors/Cesarsk" target="_blank" rel="noreferrer">Sponsor</a>
         </div>
       </div>
     </div>

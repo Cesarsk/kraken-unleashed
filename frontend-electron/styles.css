@@ -1041,12 +1041,14 @@ select {
 }
 
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 .modal-panel {
   width: min(760px, 100%);
+  max-height: calc(100vh - 48px);
   padding: 24px;
+  overflow-y: auto;
   border-radius: 24px;
   border: 1px solid var(--line);
   background: linear-gradient(180deg, #16171d, #101116);
@@ -1069,6 +1071,10 @@ select {
   width: min(720px, 100%);
 }
 
+.support-modal-panel {
+  width: min(620px, 100%);
+}
+
 .modal-header,
 .modal-actions {
   display: flex;
@@ -1085,6 +1091,27 @@ select {
 .modal-copy {
   margin: 0;
   color: var(--muted);
+}
+
+.support-modal-copy {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.support-modal-copy p {
+  margin: 0;
+}
+
+.support-optout-toggle {
+  margin-top: 18px;
+}
+
+.support-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .search-preview-stage {

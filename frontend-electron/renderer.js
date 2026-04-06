@@ -30,12 +30,18 @@ const state = {
   deployBusy: false,
   deployProgressValue: 0,
   appMeta: null,
+  appState: null,
   settings: null,
   updateState: null,
   searchPreviewItem: null,
   galleryModalSelectedPath: null,
-  firstRunSaving: false
+  firstRunSaving: false,
+  supportPromptOpen: false
 };
+
+const SUPPORT_PROMPT_MIN_DEPLOYS = 10;
+const SUPPORT_PROMPT_MIN_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+const SUPPORT_PROMPT_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
 const compatibilityCatalog = [
   {
@@ -140,7 +146,12 @@ const els = {
   firstRunCloseApp: document.getElementById('first-run-close-app'),
   firstRunLaunchAtLogin: document.getElementById('first-run-launch-at-login'),
   firstRunRestoreLastGif: document.getElementById('first-run-restore-last-gif'),
-  firstRunContinueButton: document.getElementById('first-run-continue-button')
+  firstRunContinueButton: document.getElementById('first-run-continue-button'),
+  supportModal: document.getElementById('support-modal'),
+  closeSupportButton: document.getElementById('close-support-button'),
+  supportDontShowAgain: document.getElementById('support-dont-show-again'),
+  supportNoButton: document.getElementById('support-no-button'),
+  supportYesButton: document.getElementById('support-yes-button')
 };
 
 function toFileUrl(filePath) {
@@ -321,12 +332,31 @@ function syncUpdateUI() {
         : 'App updates';
   els.updateStatusCopy.textContent = updateState.message || 'Check for new versions published on GitHub Releases.';
 
-  if (updateState.availableVersion) {
-    els.updateAvailableVersion.textContent = updateState.downloaded
-      ? `Ready v${updateState.availableVersion}`
-      : updateState.downloading
-        ? `Downloading ${updateState.progressPercent}%`
-        : `Available v${updateState.availableVersion}`;
+  const currentVersion = state.appMeta?.version || '';
+  const hasNewerVersion = Boolean(
+    updateState.availableVersion
+      && updateState.availableVersion !== currentVersion
+  );
+  const isLatestVersion = Boolean(
+    updateState.availableVersion
+      && updateState.availableVersion === currentVersion
+      && !updateState.updateAvailable
+      && !updateState.checking
+      && !updateState.downloading
+      && !updateState.downloaded
+  );
+
+  if (updateState.downloaded && updateState.availableVersion) {
+    els.updateAvailableVersion.textContent = `Ready v${updateState.availableVersion}`;
+    els.updateAvailableVersion.classList.remove('hidden');
+  } else if (updateState.downloading && updateState.availableVersion) {
+    els.updateAvailableVersion.textContent = `Downloading ${updateState.progressPercent}%`;
+    els.updateAvailableVersion.classList.remove('hidden');
+  } else if (isLatestVersion) {
+    els.updateAvailableVersion.textContent = 'LATEST';
+    els.updateAvailableVersion.classList.remove('hidden');
+  } else if (hasNewerVersion) {
+    els.updateAvailableVersion.textContent = `Available v${updateState.availableVersion}`;
     els.updateAvailableVersion.classList.remove('hidden');
   } else {
     els.updateAvailableVersion.classList.add('hidden');
@@ -378,6 +408,80 @@ function openFirstRunModal() {
 function closeFirstRunModal() {
   els.firstRunModal.classList.add('hidden');
   els.firstRunModal.setAttribute('aria-hidden', 'true');
+}
+
+function openSupportModal() {
+  state.supportPromptOpen = true;
+  els.supportDontShowAgain.checked = false;
+  els.supportModal.classList.remove('hidden');
+  els.supportModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeSupportModal() {
+  state.supportPromptOpen = false;
+  els.supportModal.classList.add('hidden');
+  els.supportModal.setAttribute('aria-hidden', 'true');
+}
+
+async function persistAppState(patch) {
+  state.appState = await window.krakenApp.saveAppState(patch);
+  return state.appState;
+}
+
+async function ensureUsageState() {
+  const appState = await window.krakenApp.getAppState();
+  const firstLaunchedAt = appState.firstLaunchedAt || new Date().toISOString();
+  const successfulDeployCount = Number(appState.successfulDeployCount || 0);
+  const supportPromptDismissed = Boolean(appState.supportPromptDismissed);
+  const supportPromptLastShownAt = appState.supportPromptLastShownAt || null;
+
+  state.appState = {
+    ...appState,
+    firstLaunchedAt,
+    successfulDeployCount,
+    supportPromptDismissed,
+    supportPromptLastShownAt
+  };
+
+  if (!appState.firstLaunchedAt) {
+    await persistAppState({
+      firstLaunchedAt,
+      successfulDeployCount,
+      supportPromptDismissed,
+      supportPromptLastShownAt
+    });
+  }
+}
+
+function shouldPromptForSupport() {
+  if (!state.appState || state.supportPromptOpen) {
+    return false;
+  }
+
+  if (state.appState.supportPromptDismissed) {
+    return false;
+  }
+
+  const firstLaunchedAt = Date.parse(state.appState.firstLaunchedAt || '');
+  if (!Number.isFinite(firstLaunchedAt) || (Date.now() - firstLaunchedAt) < SUPPORT_PROMPT_MIN_AGE_MS) {
+    return false;
+  }
+
+  const lastShownAt = Date.parse(state.appState.supportPromptLastShownAt || '');
+  if (Number.isFinite(lastShownAt) && (Date.now() - lastShownAt) < SUPPORT_PROMPT_COOLDOWN_MS) {
+    return false;
+  }
+
+  return Number(state.appState.successfulDeployCount || 0) >= SUPPORT_PROMPT_MIN_DEPLOYS;
+}
+
+async function maybePromptForSupport() {
+  if (shouldPromptForSupport()) {
+    await persistAppState({
+      supportPromptLastShownAt: new Date().toISOString()
+    });
+    openSupportModal();
+  }
 }
 
 async function updateSetting(patch, successMessage) {
@@ -1023,17 +1127,20 @@ async function writeCurrentAsset(options = {}) {
     setStatus(`Deploying ${state.assetName} to the LCD...`);
     const result = await window.krakenApp.writeAsset(preparedPayload);
     setDeployProgress(100, result.message || `${state.assetName} deployed successfully.`, 'complete');
-    await window.krakenApp.saveAppState({
-      lastDeployedAssetPath: state.assetPath,
-      lastDeployedAssetName: state.assetName,
-      lastDeployedAt: new Date().toISOString()
-    });
-    await new Promise((resolve) => window.setTimeout(resolve, 220));
-    setStatus(successStatus || result.message || `${state.assetName} deployed successfully.`);
-    if (!suppressSuccessToast) {
-      showToast(result.message || 'GIF deployed to LCD.');
-    }
-    return true;
+      const successfulDeployCount = Number(state.appState?.successfulDeployCount || 0) + 1;
+      await persistAppState({
+        lastDeployedAssetPath: state.assetPath,
+        lastDeployedAssetName: state.assetName,
+        lastDeployedAt: new Date().toISOString(),
+        successfulDeployCount
+      });
+      await new Promise((resolve) => window.setTimeout(resolve, 220));
+      setStatus(successStatus || result.message || `${state.assetName} deployed successfully.`);
+      if (!suppressSuccessToast) {
+        showToast(result.message || 'GIF deployed to LCD.');
+      }
+      await maybePromptForSupport();
+      return true;
   } catch (error) {
     const previousValue = Number.parseInt(els.deployProgressValue.textContent, 10) || 0;
     setDeployProgress(Math.max(previousValue, 1), error.message || 'Write failed.', 'error');
@@ -1185,6 +1292,7 @@ async function boot() {
   state.appMeta = await window.krakenApp.getAppMeta();
   state.settings = await window.krakenApp.getSettings();
   state.updateState = await window.krakenApp.getUpdateState();
+  await ensureUsageState();
   els.appVersion.textContent = `v${state.appMeta.version}`;
   syncSettingsUI();
   syncUpdateUI();
@@ -1451,13 +1559,33 @@ window.addEventListener('focus', () => {
 window.addEventListener('pointermove', onEditorPointerMove);
 window.addEventListener('pointerup', onEditorPointerUp);
 window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') {
-    closeEditor();
-    closeCompatibility();
-    closeSettings();
-    closeSearchPreview();
-    closeGalleryModal();
-  }
+    if (event.key === 'Escape') {
+      closeEditor();
+      closeCompatibility();
+      closeSettings();
+      closeSearchPreview();
+      closeGalleryModal();
+      closeSupportModal();
+    }
+  });
+
+els.closeSupportButton.addEventListener('click', async () => {
+  await persistAppState({
+    supportPromptDismissed: Boolean(els.supportDontShowAgain.checked)
+  });
+  closeSupportModal();
+});
+els.supportNoButton.addEventListener('click', async () => {
+  await persistAppState({
+    supportPromptDismissed: Boolean(els.supportDontShowAgain.checked)
+  });
+  closeSupportModal();
+});
+els.supportYesButton.addEventListener('click', async () => {
+  await persistAppState({
+    supportPromptDismissed: Boolean(els.supportDontShowAgain.checked)
+  });
+  closeSupportModal();
 });
 
 boot();
