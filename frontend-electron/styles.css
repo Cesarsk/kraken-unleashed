@@ -1177,6 +1177,53 @@ select {
   margin-top: 18px;
 }
 
+.settings-update-card {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.settings-update-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.settings-update-copy h3,
+.settings-update-copy p {
+  margin: 0;
+}
+
+.settings-update-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.settings-update-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(114, 242, 230, 0.18);
+  background: rgba(114, 242, 230, 0.08);
+  color: var(--accent-soft);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-update-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .first-run-settings-list {
   margin-top: 0;
 }

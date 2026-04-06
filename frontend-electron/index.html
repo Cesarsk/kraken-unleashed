@@ -236,7 +236,7 @@
         <div class="modal-header">
           <div>
             <p class="section-label">App Settings</p>
-            <h2>Startup And Tray</h2>
+            <h2>Startup And Updates</h2>
           </div>
           <button id="close-settings-button" class="icon-button">x</button>
         </div>
@@ -269,6 +269,22 @@
             </div>
             <input id="setting-restore-last-gif" type="checkbox" />
           </label>
+        </div>
+        <div class="settings-update-card">
+          <div class="settings-update-copy">
+            <p class="section-label">App Updates</p>
+            <h3 id="update-status-title">Updater ready</h3>
+            <p id="update-status-copy" class="modal-copy">Check for new versions published on GitHub Releases.</p>
+          </div>
+          <div class="settings-update-meta">
+            <span id="update-current-version" class="settings-update-badge">Current v1.0.6</span>
+            <span id="update-available-version" class="settings-update-badge hidden">Available</span>
+          </div>
+          <div class="settings-update-actions">
+            <button id="check-updates-button" class="ghost-button compact-button" type="button">Check For Updates</button>
+            <button id="download-update-button" class="secondary-button compact-button hidden" type="button">Download Update</button>
+            <button id="install-update-button" class="primary-button compact-button hidden" type="button">Restart To Install</button>
+          </div>
         </div>
         <div class="modal-actions">
           <button id="close-settings-footer-button" class="secondary-button wide-button">Close</button>

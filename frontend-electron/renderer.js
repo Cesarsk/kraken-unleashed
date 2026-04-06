@@ -31,6 +31,7 @@ const state = {
   deployProgressValue: 0,
   appMeta: null,
   settings: null,
+  updateState: null,
   searchPreviewItem: null,
   galleryModalSelectedPath: null,
   firstRunSaving: false
@@ -127,6 +128,13 @@ const els = {
   settingMinimizeToTray: document.getElementById('setting-minimize-to-tray'),
   settingStartHidden: document.getElementById('setting-start-hidden'),
   settingRestoreLastGif: document.getElementById('setting-restore-last-gif'),
+  updateStatusTitle: document.getElementById('update-status-title'),
+  updateStatusCopy: document.getElementById('update-status-copy'),
+  updateCurrentVersion: document.getElementById('update-current-version'),
+  updateAvailableVersion: document.getElementById('update-available-version'),
+  checkUpdatesButton: document.getElementById('check-updates-button'),
+  downloadUpdateButton: document.getElementById('download-update-button'),
+  installUpdateButton: document.getElementById('install-update-button'),
   firstRunModal: document.getElementById('first-run-modal'),
   firstRunCloseToTray: document.getElementById('first-run-close-to-tray'),
   firstRunCloseApp: document.getElementById('first-run-close-app'),
@@ -287,6 +295,50 @@ function syncSettingsUI() {
   const startupDependentDisabled = !state.settings.launchAtLogin;
   els.settingStartHidden.disabled = startupDependentDisabled;
   els.settingRestoreLastGif.disabled = startupDependentDisabled;
+}
+
+function syncUpdateUI() {
+  const updateState = state.updateState;
+  const currentVersionLabel = state.appMeta?.version ? `Current v${state.appMeta.version}` : 'Current version';
+  els.updateCurrentVersion.textContent = currentVersionLabel;
+
+  if (!updateState) {
+    els.updateStatusTitle.textContent = 'Updater unavailable';
+    els.updateStatusCopy.textContent = 'The updater status is not ready yet.';
+    els.updateAvailableVersion.classList.add('hidden');
+    els.checkUpdatesButton.disabled = true;
+    els.downloadUpdateButton.classList.add('hidden');
+    els.installUpdateButton.classList.add('hidden');
+    return;
+  }
+
+  els.updateStatusTitle.textContent = updateState.downloaded
+    ? 'Update ready to install'
+    : updateState.updateAvailable
+      ? 'Update available'
+      : updateState.checking
+        ? 'Checking for updates'
+        : 'App updates';
+  els.updateStatusCopy.textContent = updateState.message || 'Check for new versions published on GitHub Releases.';
+
+  if (updateState.availableVersion) {
+    els.updateAvailableVersion.textContent = updateState.downloaded
+      ? `Ready v${updateState.availableVersion}`
+      : updateState.downloading
+        ? `Downloading ${updateState.progressPercent}%`
+        : `Available v${updateState.availableVersion}`;
+    els.updateAvailableVersion.classList.remove('hidden');
+  } else {
+    els.updateAvailableVersion.classList.add('hidden');
+  }
+
+  const unsupported = !updateState.supported;
+  els.checkUpdatesButton.disabled = unsupported || updateState.checking || updateState.downloading;
+  els.downloadUpdateButton.disabled = unsupported || updateState.checking || updateState.downloading;
+  els.installUpdateButton.disabled = unsupported;
+
+  els.downloadUpdateButton.classList.toggle('hidden', !updateState.updateAvailable || updateState.downloaded);
+  els.installUpdateButton.classList.toggle('hidden', !updateState.downloaded);
 }
 
 function openSettings() {
@@ -1132,9 +1184,15 @@ async function boot() {
   setDeviceControlState(false);
   state.appMeta = await window.krakenApp.getAppMeta();
   state.settings = await window.krakenApp.getSettings();
+  state.updateState = await window.krakenApp.getUpdateState();
   els.appVersion.textContent = `v${state.appMeta.version}`;
   syncSettingsUI();
+  syncUpdateUI();
   syncFirstRunUI();
+  window.krakenApp.onUpdateState((payload) => {
+    state.updateState = payload;
+    syncUpdateUI();
+  });
   if (!state.settings?.onboardingComplete) {
     openFirstRunModal();
   }
@@ -1311,6 +1369,27 @@ els.settingRestoreLastGif.addEventListener('change', async (event) => {
     );
   } catch (error) {
     event.target.checked = !event.target.checked;
+    showToast(error.message, 'error');
+  }
+});
+els.checkUpdatesButton.addEventListener('click', async () => {
+  try {
+    await window.krakenApp.checkForUpdates();
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+});
+els.downloadUpdateButton.addEventListener('click', async () => {
+  try {
+    await window.krakenApp.downloadUpdate();
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+});
+els.installUpdateButton.addEventListener('click', async () => {
+  try {
+    await window.krakenApp.installUpdate();
+  } catch (error) {
     showToast(error.message, 'error');
   }
 });

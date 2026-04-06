@@ -4,6 +4,10 @@ contextBridge.exposeInMainWorld('krakenApp', {
   getAppMeta: () => ipcRenderer.invoke('app:get-app-meta'),
   getSettings: () => ipcRenderer.invoke('app:get-settings'),
   updateSettings: (patch) => ipcRenderer.invoke('app:update-settings', patch),
+  getUpdateState: () => ipcRenderer.invoke('app:get-update-state'),
+  checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('app:download-update'),
+  installUpdate: () => ipcRenderer.invoke('app:install-update'),
   getDeviceInfo: () => ipcRenderer.invoke('app:get-device-info'),
   setBrightness: (value) => ipcRenderer.invoke('app:set-brightness', value),
   recoverLiquid: () => ipcRenderer.invoke('app:recover-liquid'),
@@ -23,5 +27,10 @@ contextBridge.exposeInMainWorld('krakenApp', {
     const wrapped = (_event, payload) => listener(payload);
     ipcRenderer.on('app:deploy-progress', wrapped);
     return () => ipcRenderer.removeListener('app:deploy-progress', wrapped);
+  },
+  onUpdateState: (listener) => {
+    const wrapped = (_event, payload) => listener(payload);
+    ipcRenderer.on('app:update-state', wrapped);
+    return () => ipcRenderer.removeListener('app:update-state', wrapped);
   }
 });
